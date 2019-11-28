@@ -10,6 +10,6 @@ setup(name='mpgm',
       license='None',
       packages=['mpgm'],
       install_requires=[
-          'numpy',
+          'numpy', 'networkx', 'matplotlib', 'tqdm',
       ],
       zip_safe=False)
