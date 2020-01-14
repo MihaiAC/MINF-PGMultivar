@@ -1,5 +1,8 @@
 import numpy as np
+import tqdm
 from decimal import Decimal
+from multiprocessing import Pool
+from math import factorial
 
 
 class Tpgm(object):
@@ -14,7 +17,7 @@ class Tpgm(object):
     :param seed: Seed used for np.random.
     """
 
-    def __init__(self, theta=None, data=None, R=100, seed=None):
+    def __init__(self, theta=None, data=None, R=100):
         """
         Constructor for TPGM class.
 
@@ -26,6 +29,7 @@ class Tpgm(object):
         self.R = R
         self.log_factorials = Tpgm.calculate_log_factorials_upto(R)
 
+        # TODO: get rid of self.N (useless).
         if theta is not None:
             self.N = len(theta[0])
             self.theta = np.array(theta)
@@ -34,10 +38,6 @@ class Tpgm(object):
             self.data = np.array(data)
             self.data[self.data >= self.R] = self.R
             self.N = len(data[0])
-
-        if seed is not None:
-            self.seed = seed
-            np.random.seed(seed)
 
     def __setattr__(self, key, value):
         if key == 'R':
@@ -53,7 +53,6 @@ class Tpgm(object):
 
         :param node: Node to generate sample for.
         :param data: Current values of the nodes (ordered).
-        :param seed: Optional parameter, sets the seed of np.random.
         :return: A sample from the node-conditional probability of our node.
         """
 
@@ -77,7 +76,7 @@ class Tpgm(object):
         Calculates the probability of node having the provided value given the other nodes.
 
         :param node: Integer representing the node we're interested in.
-        :param data: 1 X N array containing the values of the nodes (including our node).
+        :param data: 1 X P array containing the values of the nodes (including our node).
         :param node_value: Value of the node we're interested in.
         :param partition: Optional argument, equal to the value of the partition function. Relevant only for sampling.
         :param dot_product: Inner dot product present in the partition function and denominator of the conditional
@@ -85,8 +84,10 @@ class Tpgm(object):
         :return: A tuple containing the likelihood, the value of the partition function and the dot_product in this order.
         """
         if dot_product is None:
-            dot_product = np.dot(self.theta[node, :], data)
+            dot_product = np.dot(self.theta[node, :], data) - self.theta[node, node] * data[node] + self.theta[node, node]
 
+        #TODO: OPTIMIZE PARTITION SO IT WON'T OVERFLOW!!!!!!!!!!!!!!!! (scoate factor comun exp(cel mai mare exponent))
+        #   si imparte pe rand!!!!!!!!!!!!!!!!!
         if partition is None:
             partition = 0
             for kk in range(self.R+1):
@@ -98,7 +99,6 @@ class Tpgm(object):
 
     @staticmethod
     def calculate_log_factorials_upto(R):
-        # TODO: May need to remove this function for large R.
         """
         Self-explanatory.
 
@@ -116,3 +116,105 @@ class Tpgm(object):
 
         return log_factorials
 
+
+    @staticmethod
+    def calculate_ll_datapoint(node, datapoint, theta, R):
+        """
+        :return: returns (nll_datapoint, log_partition)
+        """
+
+        log_partition = 0
+
+        exponents = []
+        dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
+        for kk in range(R+1):
+            curr_exponent = dot_product * kk - np.log(factorial(kk))
+            exponents.append(curr_exponent)
+
+        max_exponent = max(exponents)
+        log_partition += max_exponent
+
+        sum_of_rest = 0
+        for kk in range(R+1):
+            sum_of_rest += np.exp(exponents[kk] - max_exponent)
+
+        log_partition += np.log(sum_of_rest)
+
+        return dot_product * datapoint[node] - np.log(factorial(datapoint[node])) - log_partition, log_partition
+
+    @staticmethod
+    def calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition):
+        grad = np.zeros(datapoint.shape)
+
+        dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
+
+        log_partition_derivative_term = 0
+        for kk in range(R+1):
+            log_partition_derivative_term += np.exp(dot_product * kk - np.log(factorial(kk)) + np.log(kk) - log_partition)
+
+        grad[node] = datapoint[node] - log_partition_derivative_term
+        for ii in range(datapoint.shape[0]):
+            if ii != node:
+                grad[ii] = datapoint[ii] * grad[node]
+
+        return grad
+
+    @staticmethod
+    def calculate_nll_and_grad_nll_datapoint(node, datapoint, theta, R):
+        ll, log_partition = Tpgm.calculate_ll_datapoint(node, datapoint, theta, R)
+        grad_ll = Tpgm.calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition)
+
+        return -ll, -grad_ll
+
+    @staticmethod
+    def calculate_nll_and_grad_nll(node, data, theta, R):
+        N = data.shape[0]
+
+        nll = 0
+        grad_nll = np.zeros((data.shape[1], ))
+
+        for ii in range(N):
+            nll_ii, grad_nll_ii = Tpgm.calculate_nll_and_grad_nll_datapoint(node, data[ii, :], theta, R)
+            nll += nll_ii
+            grad_nll += grad_nll_ii
+
+        nll = nll/N
+        grad_nll = grad_nll/N
+
+        return nll, grad_nll
+
+    @staticmethod
+    def calculate_nll(node, data, theta, R):
+        N = data.shape[0]
+
+        nll = 0
+
+        for ii in range(N):
+            nll -= Tpgm.calculate_ll_datapoint(node, data[ii, :], theta, R)
+
+        nll = nll/N
+
+        return nll
+
+
+
+
+
+    # TODO: Add docstring + smart kwargs; parallelize for each node with multiprocessing.
+    def fit(self, data, theta_init, alpha, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
+            rel_tol=1e-3, abs_tol=1e-6):
+        """
+        :param data: N X P matrix; each row is a datapoint;
+        :param theta_init: starting parameter values;
+        :param alpha: regularization parameter;
+        :param max_iter:
+        :param max_line_search_iter:
+        :param lambda_p: step size for the proximal gradient descent method;
+        :param beta:
+        :param rel_tol:
+        :param abs_tol:
+        :return:
+        """
+
+        f = self.nll_node_cond_prob
+        grad_f = self.nll_derivative_node_cond_prob
