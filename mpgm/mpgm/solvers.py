@@ -6,8 +6,8 @@ import tqdm
 # TODO: Check what to do with theta st and theta ts not agreeing. Can you do anything?
 # TODO: Check what to do with theta ss (node parameters). Include them too after testing?
 
-def prox_grad(theta_init, alpha, node, data, f, f_and_grad_f, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
-              rel_tol=1e-3, abs_tol=1e-6, *params_for_f_grad_f):
+def prox_grad(node, theta_init, alpha, data, f, f_and_grad_f, params_for_f_grad_f, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
+              rel_tol=1e-3, abs_tol=1e-6):
     # TODO: Add references.
     """
     Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
@@ -35,7 +35,7 @@ def prox_grad(theta_init, alpha, node, data, f, f_and_grad_f, max_iter=5000, max
     # TODO: Somehow test this method.
     # TODO: Make grad_f accept an optional parameter(partition).
 
-    likelihoods = np.zeros((1, max_line_search_iter))
+    likelihoods = np.zeros((max_iter, ))
     theta_k_2 = np.array(theta_init)
     theta_k_1 = np.array(theta_init)
     lambda_k = lambda_p
@@ -65,14 +65,15 @@ def prox_grad(theta_init, alpha, node, data, f, f_and_grad_f, max_iter=5000, max
             theta_k_1 = z
             likelihoods[k] = f_z
             # TODO: use decimal?
-            if (k > 0 and (np.abs(f_z - likelihoods[k - 1]) < abs_tol or
+            if (k > 2 and (np.abs(f_z - likelihoods[k - 1]) < abs_tol or
                            (np.abs(f_z - likelihoods[k - 1]) / min(np.abs(f_z),
                                                                    np.abs(likelihoods[k - 1]))) < rel_tol)):
                 return theta_k_1, likelihoods, True
         else:
             print('Line search failed to converge.')
-            return None
+            return theta_k_1, likelihoods, False
     return theta_k_1, likelihoods, False
+
 
 def soft_threshold(x, threshold):
     """

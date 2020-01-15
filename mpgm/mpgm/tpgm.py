@@ -1,8 +1,8 @@
 import numpy as np
-import tqdm
 from decimal import Decimal
 from multiprocessing import Pool
 from math import factorial
+from mpgm.mpgm.solvers import prox_grad
 
 
 class Tpgm(object):
@@ -14,15 +14,13 @@ class Tpgm(object):
     :param R: maximum count (truncation value).
     :param log_factorials: Log factorials of integers up to R.
     :param data: Data to fit the model with.
-    :param seed: Seed used for np.random.
     """
 
-    def __init__(self, theta=None, data=None, R=100):
+    def __init__(self, theta=None, R=100):
         """
         Constructor for TPGM class.
 
         :param theta: N x N matrix, given when we want to generate samples from an existing distribution.
-        :param data: M x N matrix, one row is equivalent to one sample of the distribution to be fitted.
         :param R: maximum count value, should be an integer.
         """
 
@@ -33,11 +31,6 @@ class Tpgm(object):
         if theta is not None:
             self.N = len(theta[0])
             self.theta = np.array(theta)
-
-        if data is not None:
-            self.data = np.array(data)
-            self.data[self.data >= self.R] = self.R
-            self.N = len(data[0])
 
     def __setattr__(self, key, value):
         if key == 'R':
@@ -59,19 +52,17 @@ class Tpgm(object):
         uu = np.random.uniform(0, 1, 1)[0]
         uu = Decimal(uu)
 
-        prob1, partition, dot_product = self.node_cond_prob(node, 0, data)
+        prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, data)
         cdf = prob1
 
         for node_value in range(1, self.R + 1):
-            #print(type(uu))
-            #print(type(cdf))
             if uu.compare(Decimal(cdf)) == Decimal('-1'):
                 return node_value-1
-            cdf += self.node_cond_prob(node, node_value, data, partition, dot_product)[0]
+            cdf += self.node_cond_prob(node, node_value, data, dot_product, partition_max_exp, partition_reduced)[0]
 
         return self.R
 
-    def node_cond_prob(self, node, node_value, data, partition=None, dot_product=None):
+    def node_cond_prob(self, node, node_value, data, dot_product=None, partition_max_exp=None, partition_reduced=None):
         """
         Calculates the probability of node having the provided value given the other nodes.
 
@@ -88,14 +79,21 @@ class Tpgm(object):
 
         #TODO: OPTIMIZE PARTITION SO IT WON'T OVERFLOW!!!!!!!!!!!!!!!! (scoate factor comun exp(cel mai mare exponent))
         #   si imparte pe rand!!!!!!!!!!!!!!!!!
-        if partition is None:
-            partition = 0
+        if partition_reduced is None:
+
+            partition_exponents = np.zeros((self.R+1, ))
             for kk in range(self.R+1):
-                partition += np.exp(dot_product * kk - self.log_factorials[kk])
+                partition_exponents[kk] = dot_product * kk - self.log_factorials[kk]
 
-        cond_prob = np.exp(dot_product * node_value - self.log_factorials[node_value])/partition
+            partition_max_exp = max(partition_exponents)
+            partition_reduced = 0
+            for kk in range(self.R+1):
+                partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
 
-        return cond_prob, partition, dot_product
+
+        cond_prob = np.exp(dot_product * node_value - self.log_factorials[node_value] - partition_max_exp)/partition_reduced
+
+        return cond_prob, partition_max_exp, partition_reduced, dot_product
 
     @staticmethod
     def calculate_log_factorials_upto(R):
@@ -116,7 +114,6 @@ class Tpgm(object):
 
         return log_factorials
 
-
     @staticmethod
     def calculate_ll_datapoint(node, datapoint, theta, R):
         """
@@ -128,7 +125,7 @@ class Tpgm(object):
         exponents = []
         dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
         for kk in range(R+1):
-            curr_exponent = dot_product * kk - np.log(factorial(kk))
+            curr_exponent = dot_product * kk - np.log(float(factorial(kk)))
             exponents.append(curr_exponent)
 
         max_exponent = max(exponents)
@@ -140,7 +137,7 @@ class Tpgm(object):
 
         log_partition += np.log(sum_of_rest)
 
-        return dot_product * datapoint[node] - np.log(factorial(datapoint[node])) - log_partition, log_partition
+        return dot_product * datapoint[node] - np.log(float(factorial(datapoint[node]))) - log_partition, log_partition
 
     @staticmethod
     def calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition):
@@ -149,8 +146,8 @@ class Tpgm(object):
         dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
 
         log_partition_derivative_term = 0
-        for kk in range(R+1):
-            log_partition_derivative_term += np.exp(dot_product * kk - np.log(factorial(kk)) + np.log(kk) - log_partition)
+        for kk in range(1, R+1):
+            log_partition_derivative_term += np.exp(dot_product * kk - np.log(float(factorial(kk))) + np.log(kk) - log_partition)
 
         grad[node] = datapoint[node] - log_partition_derivative_term
         for ii in range(datapoint.shape[0]):
@@ -190,18 +187,21 @@ class Tpgm(object):
         nll = 0
 
         for ii in range(N):
-            nll -= Tpgm.calculate_ll_datapoint(node, data[ii, :], theta, R)
+            nll -= Tpgm.calculate_ll_datapoint(node, data[ii, :], theta, R)[0]
 
         nll = nll/N
 
         return nll
 
-
-
-
+    @staticmethod
+    def provide_args(nr_nodes, other_args):
+        for ii in range(nr_nodes):
+            yield [ii] + other_args
+        return
 
     # TODO: Add docstring + smart kwargs; parallelize for each node with multiprocessing.
-    def fit(self, data, theta_init, alpha, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
+    @staticmethod
+    def fit(data, theta_init, alpha, R, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
             rel_tol=1e-3, abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
@@ -216,5 +216,14 @@ class Tpgm(object):
         :return:
         """
 
-        f = self.nll_node_cond_prob
-        grad_f = self.nll_derivative_node_cond_prob
+        f = Tpgm.calculate_nll
+        f_and_grad_f = Tpgm.calculate_nll_and_grad_nll
+
+        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R], max_iter, max_line_search_iter, lambda_p, beta,
+                     rel_tol, abs_tol]
+        nr_nodes = data.shape[1]
+
+        with Pool(processes=4) as pool:
+            return pool.starmap(prox_grad, Tpgm.provide_args(nr_nodes, tail_args))
+
+
