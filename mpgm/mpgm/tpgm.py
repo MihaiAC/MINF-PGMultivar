@@ -23,14 +23,8 @@ class Tpgm(object):
         :param theta: N x N matrix, given when we want to generate samples from an existing distribution.
         :param R: maximum count value, should be an integer.
         """
-
         self.R = R
-        self.log_factorials = Tpgm.calculate_log_factorials_upto(R)
-
-        # TODO: get rid of self.N (useless).
-        if theta is not None:
-            self.N = len(theta[0])
-            self.theta = np.array(theta)
+        self.theta = np.array(theta)
 
     def __setattr__(self, key, value):
         if key == 'R':
@@ -40,7 +34,7 @@ class Tpgm(object):
             assert value <= 100, "The model has not been tested with R values higher than 100"
         super(Tpgm, self).__setattr__(key, value)
 
-    def generate_sample_cond_prob(self, node, data):
+    def generate_node_sample(self, node, nodes_values):
         """
         Generate a sample for node from its node-conditional probability.
 
@@ -52,13 +46,13 @@ class Tpgm(object):
         uu = np.random.uniform(0, 1, 1)[0]
         uu = Decimal(uu)
 
-        prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, data)
+        prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, nodes_values)
         cdf = prob1
 
         for node_value in range(1, self.R + 1):
             if uu.compare(Decimal(cdf)) == Decimal('-1'):
                 return node_value-1
-            cdf += self.node_cond_prob(node, node_value, data, dot_product, partition_max_exp, partition_reduced)[0]
+            cdf += self.node_cond_prob(node, node_value, nodes_values, dot_product, partition_max_exp, partition_reduced)[0]
 
         return self.R
 
@@ -77,42 +71,20 @@ class Tpgm(object):
         if dot_product is None:
             dot_product = np.dot(self.theta[node, :], data) - self.theta[node, node] * data[node] + self.theta[node, node]
 
-        #TODO: OPTIMIZE PARTITION SO IT WON'T OVERFLOW!!!!!!!!!!!!!!!! (scoate factor comun exp(cel mai mare exponent))
-        #   si imparte pe rand!!!!!!!!!!!!!!!!!
         if partition_reduced is None:
 
             partition_exponents = np.zeros((self.R+1, ))
             for kk in range(self.R+1):
-                partition_exponents[kk] = dot_product * kk - self.log_factorials[kk]
+                partition_exponents[kk] = dot_product * kk - np.log(factorial(kk))
 
             partition_max_exp = max(partition_exponents)
             partition_reduced = 0
             for kk in range(self.R+1):
                 partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
 
-
-        cond_prob = np.exp(dot_product * node_value - self.log_factorials[node_value] - partition_max_exp)/partition_reduced
+        cond_prob = np.exp(dot_product * node_value - np.log(factorial(node_value)) - partition_max_exp)/partition_reduced
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
-
-    @staticmethod
-    def calculate_log_factorials_upto(R):
-        """
-        Self-explanatory.
-
-        :param R: Positive integer value up to which to calculate log factorials.
-        :return: np.array, containing log[i!] at index i.
-        """
-
-        log_factorials = np.zeros(R+1)
-        log_factorials[0] = 0.0
-        log_sum = 0
-
-        for ii in range(1, R+1):
-            log_sum += np.log(ii)
-            log_factorials[ii] = log_sum
-
-        return log_factorials
 
     @staticmethod
     def calculate_ll_datapoint(node, datapoint, theta, R):
@@ -201,7 +173,7 @@ class Tpgm(object):
 
     # TODO: Add docstring + smart kwargs; parallelize for each node with multiprocessing.
     @staticmethod
-    def fit(data, theta_init, alpha, R, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
+    def fit(data, theta_init, alpha, R, condition=None, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
             rel_tol=1e-3, abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
@@ -219,11 +191,9 @@ class Tpgm(object):
         f = Tpgm.calculate_nll
         f_and_grad_f = Tpgm.calculate_nll_and_grad_nll
 
-        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R], max_iter, max_line_search_iter, lambda_p, beta,
+        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R], condition, max_iter, max_line_search_iter, lambda_p, beta,
                      rel_tol, abs_tol]
         nr_nodes = data.shape[1]
 
         with Pool(processes=4) as pool:
             return pool.starmap(prox_grad, Tpgm.provide_args(nr_nodes, tail_args))
-
-
