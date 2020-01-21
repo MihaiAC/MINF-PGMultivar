@@ -142,7 +142,7 @@ class Qpgm(object):
         return nll
 
     @staticmethod
-    def condition(node, theta, data):
+    def condition(node, theta, data, *args):
         return theta[-1] < 0
 
     @staticmethod
@@ -153,7 +153,7 @@ class Qpgm(object):
 
     # TODO: Add docstring + smart kwargs; parallelize for each node with multiprocessing.
     @staticmethod
-    def fit(data, theta_init, alpha, R, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
+    def fit(data, theta_init, alpha, R, condition, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
             rel_tol=1e-3, abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
@@ -171,7 +171,7 @@ class Qpgm(object):
         f = Qpgm.calculate_nll
         f_and_grad_f = Qpgm.calculate_nll_and_grad_nll
 
-        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R], max_iter, max_line_search_iter, lambda_p, beta,
+        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R], condition, max_iter, max_line_search_iter, lambda_p, beta,
                      rel_tol, abs_tol]
         nr_nodes = data.shape[1]
 

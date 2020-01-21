@@ -1,18 +1,17 @@
 import numpy as np
 from decimal import Decimal
 from multiprocessing import Pool
-from math import factorial
 from mpgm.mpgm.solvers import prox_grad
+from scipy.special import gammaln
+
 
 
 class Tpgm(object):
     """
     Class for generating samples from and fitting TPGM distributions.
 
-    :param N: dimensionality of our random variables;
     :param theta: N x N matrix; theta[s][t] = weight of the edge between nodes (dimensions) s and t.
     :param R: maximum count (truncation value).
-    :param log_factorials: Log factorials of integers up to R.
     :param data: Data to fit the model with.
     """
 
@@ -75,14 +74,14 @@ class Tpgm(object):
 
             partition_exponents = np.zeros((self.R+1, ))
             for kk in range(self.R+1):
-                partition_exponents[kk] = dot_product * kk - np.log(factorial(kk))
+                partition_exponents[kk] = dot_product * kk - gammaln(kk+1)
 
             partition_max_exp = max(partition_exponents)
             partition_reduced = 0
             for kk in range(self.R+1):
                 partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
 
-        cond_prob = np.exp(dot_product * node_value - np.log(factorial(node_value)) - partition_max_exp)/partition_reduced
+        cond_prob = np.exp(dot_product * node_value - gammaln(node_value+1) - partition_max_exp)/partition_reduced
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
 
@@ -97,7 +96,7 @@ class Tpgm(object):
         exponents = []
         dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
         for kk in range(R+1):
-            curr_exponent = dot_product * kk - np.log(float(factorial(kk)))
+            curr_exponent = dot_product * kk - gammaln(kk+1)
             exponents.append(curr_exponent)
 
         max_exponent = max(exponents)
@@ -109,7 +108,7 @@ class Tpgm(object):
 
         log_partition += np.log(sum_of_rest)
 
-        return dot_product * datapoint[node] - np.log(float(factorial(datapoint[node]))) - log_partition, log_partition
+        return dot_product * datapoint[node] - gammaln(datapoint[node] + 1) - log_partition, log_partition
 
     @staticmethod
     def calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition):
@@ -119,7 +118,7 @@ class Tpgm(object):
 
         log_partition_derivative_term = 0
         for kk in range(1, R+1):
-            log_partition_derivative_term += np.exp(dot_product * kk - np.log(float(factorial(kk))) + np.log(kk) - log_partition)
+            log_partition_derivative_term += np.exp(dot_product * kk - gammaln(kk+1) + np.log(kk) - log_partition)
 
         grad[node] = datapoint[node] - log_partition_derivative_term
         for ii in range(datapoint.shape[0]):

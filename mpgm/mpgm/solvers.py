@@ -70,7 +70,7 @@ def prox_grad(node, theta_init, alpha, data, f, f_and_grad_f, params_for_f_grad_
             likelihoods[k] = f_z
 
             if condition is not None:
-                conditions[k] = condition(node, z, data)
+                conditions[k] = condition(node, z, data, *params_for_f_grad_f)
 
             if (k > 2 and (np.abs(f_z - likelihoods[k - 1]) < abs_tol or
                            (np.abs(f_z - likelihoods[k - 1]) / min(np.abs(f_z),
