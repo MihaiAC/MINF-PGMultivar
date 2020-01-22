@@ -1,12 +1,8 @@
 import numpy as np
-import tqdm
 
 
-# TODO: Check what to do with theta st and theta ts not agreeing. Can you do anything?
-# TODO: Check what to do with theta ss (node parameters). Include them too after testing?
 def prox_grad(node, theta_init, alpha, data, f, f_and_grad_f, params_for_f_grad_f, condition=None, max_iter=5000,
               max_line_search_iter=50, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
-    # TODO: Add references.
     """
     Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
         package.
@@ -50,7 +46,6 @@ def prox_grad(node, theta_init, alpha, data, f, f_and_grad_f, params_for_f_grad_
     for k in range(1, max_iter + 1):
         w_k = k / (k + 3)
         y_k = theta_k_1 + w_k * (theta_k_1 - theta_k_2)
-        # TODO: recheck this.
         f_y_k, grad_y_k = f_and_grad_f(node, data, y_k, *params_for_f_grad_f)
 
         sw = False
@@ -58,7 +53,6 @@ def prox_grad(node, theta_init, alpha, data, f, f_and_grad_f, params_for_f_grad_
             z = soft_threshold(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha)
             f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * (np.linalg.norm(z - y_k) ** 2)
             f_z = f(node, data, z, *params_for_f_grad_f)  # NLL at current step.
-            # TODO: use decimal?
             if f_z <= f_tilde:
                 sw = True
                 break

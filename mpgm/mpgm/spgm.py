@@ -26,8 +26,6 @@ class Spgm(object):
     def __setattr__(self, key, value):
         if key == 'R':
             assert type(value) is int and value > 0, "R must be a positive integer"
-
-            #TODO: Test the performance of the TPGM model for different R values
             assert value <= 100, "The model has not been tested with R values higher than 100"
 
         if key == 'R0':
@@ -200,7 +198,6 @@ class Spgm(object):
                 conditions += 1
         return conditions
 
-    # TODO: Add docstring + smart kwargs; parallelize for each node with multiprocessing.
     @staticmethod
     def fit(data, theta_init, alpha, R, R0, condition, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
             rel_tol=1e-3, abs_tol=1e-6):

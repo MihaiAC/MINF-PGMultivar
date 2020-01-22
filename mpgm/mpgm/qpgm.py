@@ -151,7 +151,6 @@ class Qpgm(object):
             yield [ii] + other_args
         return
 
-    # TODO: Add docstring + smart kwargs; parallelize for each node with multiprocessing.
     @staticmethod
     def fit(data, theta_init, alpha, R, condition, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
             rel_tol=1e-3, abs_tol=1e-6):

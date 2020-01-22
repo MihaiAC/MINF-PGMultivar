@@ -14,8 +14,6 @@ class Experiment:
         :param random_seed: Seed for np.random for reproducibility.
         :param experiment_name: Name of the experiment. Two experiments are different if they use different sampled data.
         :param subexperiment_name: Subexperiments within an experiment.
-        # TODO: Get rid of this variable. Check if there is a folder with the experiment name instead.
-        :param samples_not_generated_before:
         '''
         self.data_file_path = data_file_path
 
@@ -43,15 +41,6 @@ class Experiment:
             pickle.dump(fit_data, f)
 
         print('Experiment ' + self.experiment_name + ', subexperiment ' + self.subexperiment_name + ' done!')
-
-# TODO: Add references to models' docstring.
-# TODO: Draw theta ss too for tpgm parameters.
-# TODO: Derive TPGM log likelihood derivative in dissertation.
-# TODO: Need a general testing script (used to set up parameters + save/load the results). Doing it by command line
-#   would be useful.
-# TODO: Make sure that np.seed is initialised only once for the whole program (HERE).
-
-# TODO: Need to compare both graph structure and actual parameter values; recreate the graphs used by the papers.
 
 def test_tpgm():
     random_seed = 195

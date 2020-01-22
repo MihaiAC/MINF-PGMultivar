@@ -2,7 +2,6 @@ import networkx as nx
 import numpy as np
 
 
-# TODO: pos_mean, neg_mean, std: temp variables;
 def generate_scale_free_graph(nr_variables, weak_pos_mean, weak_neg_mean, weak_std, alpha, beta, gamma):
     # alpha: add new node + edge to existing node
     # beta: add new edge between existing node
