@@ -3,6 +3,8 @@ import pickle
 import os
 from tqdm import trange
 from mpgm.mpgm.TPGM import TPGM
+from mpgm.mpgm.QPGM import QPGM
+from mpgm.mpgm.SPGM import SPGM
 from mpgm.mpgm.auxiliary_methods import generate_scale_free_graph
 
 class Sampler():
@@ -82,34 +84,46 @@ class Sampler():
 
         return samples
 
-random_seed = 200
+class SamplerWrapper():
+    def __init__(self, graph_generator_name, generator_model_name, sampling_method_name, samples_id, random_seed=200,
+                 nr_variables=10, weak_pos_mean=0.04, weak_neg_mean=-0.04, weak_std=0.3, scale_free_alpha=0.1,
+                 scale_free_beta=0.8, scale_free_gamma=0.1, R=10, R0=5, nr_samples=50, burn_in=200, thinning_nr=50,
+                 theta_quad=None, sampler_init_values=None):
+        np.random.seed(random_seed)
 
-nr_variables = 50
-weak_pos_mean = 0.04
-weak_neg_mean = -0.04
-weak_std = 0.3
-alpha = 0.1
-beta = 0.8
-gamma = 0.1
-graph_generator_params = dict({'nr_variables': nr_variables, 'weak_pos_mean': weak_pos_mean,
-                                'weak_neg_mean': weak_neg_mean, 'weak_std': weak_std, 'alpha': alpha, 'beta': beta,
-                                'gamma': gamma})
-graph_generator = generate_scale_free_graph
+        if(graph_generator_name == 'scale_free'):
+            self.graph_generator = generate_scale_free_graph
+            self.graph_generator_params = dict({'nr_variables': nr_variables, 'weak_pos_mean': weak_pos_mean,
+                                'weak_neg_mean': weak_neg_mean, 'weak_std': weak_std, 'alpha': scale_free_alpha,
+                                'beta': scale_free_beta, 'gamma': scale_free_gamma})
+        else:
+            raise ValueError('Invalid graph generator name.')
 
-R = 50
-generator_model = TPGM
-generator_model_params = dict({'R': R})
+        if(generator_model_name == 'TPGM'):
+            self.generator_model = TPGM
+            self.generator_model_params = dict({'R': R})
+        elif(generator_model_name == 'QPGM'):
+            self.generator_model = QPGM
+            assert theta_quad != None, 'Invalid theta_quad value'
+            self.generator_model_params = dict({'theta_quad': theta_quad})
+        elif(generator_model_name == 'SPGM'):
+            self.generator_model = SPGM
+            self.generator_model_params = dict({'R': R, 'R0': R0})
+        else:
+            raise ValueError('Invalid generator model name.')
 
-sampler_init = np.random.randint(1, 3, nr_variables)
-nr_samples = 200
-burn_in = 150
-thinning_nr = 50
-sampling_method_params = dict({'init': sampler_init, 'nr_samples': nr_samples, 'burn_in': burn_in,
-                        'thinning_nr': thinning_nr})
-sampling_method = Sampler.generate_samples_gibbs
+        if(sampling_method_name == 'gibbs'):
+            self.sampling_method = Sampler.generate_samples_gibbs
+            self.sampling_method_params = dict({'init': sampler_init_values, 'nr_samples': nr_samples, 'burn_in': burn_in,
+                                          'thinning_nr': thinning_nr})
+        else:
+            raise ValueError('Invalid sampling method name.')
 
-def TPGM_scale_free_generate_samples1():
-    samples_folder = 'Samples/TPGM_scale_free/Samples_1'
-    sampler = Sampler(graph_generator, graph_generator_params, generator_model, generator_model_params, sampling_method,
-                      sampling_method_params)
-    sampler.generate_samples_to_folder(samples_folder)
+        self.samples_folder = 'Samples/' + generator_model_name + '_' + graph_generator_name + '/Samples_' + \
+                              str(samples_id)
+
+    def generate_samples(self):
+        sampler = Sampler(self.graph_generator, self.graph_generator_params, self.generator_model,
+                          self.generator_model_params, self.sampling_method, self.sampling_method_params)
+        sampler.generate_samples_to_folder(self.samples_folder)
+
