@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 import os
 from tqdm import trange
-from mpgm.mpgm.tpgm import Tpgm
+from mpgm.mpgm.TPGM import TPGM
 from mpgm.mpgm.auxiliary_methods import generate_scale_free_graph
 
 class Sampler():
@@ -97,7 +97,7 @@ graph_generator_params = dict({'nr_variables': nr_variables, 'weak_pos_mean': we
 graph_generator = generate_scale_free_graph
 
 R = 50
-generator_model = Tpgm
+generator_model = TPGM
 generator_model_params = dict({'R': R})
 
 sampler_init = np.random.randint(1, 3, nr_variables)

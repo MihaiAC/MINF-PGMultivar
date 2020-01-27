@@ -2,11 +2,11 @@ import numpy as np
 from decimal import Decimal
 from multiprocessing import Pool
 from mpgm.mpgm.solvers import prox_grad
+from mpgm.mpgm.model import Model
 from scipy.special import gammaln
 
 
-
-class Tpgm(object):
+class TPGM(Model):
     """
     Class for generating samples from and fitting TPGM distributions.
 
@@ -24,12 +24,13 @@ class Tpgm(object):
         """
         self.R = R
         self.theta = np.array(theta)
+        self.condition = None # Condition to be checked after each iteration of prox grad.
 
     def __setattr__(self, key, value):
         if key == 'R':
             assert type(value) is int and value > 0, "R must be a positive integer"
             assert value <= 100, "The model has not been tested with R values higher than 100"
-        super(Tpgm, self).__setattr__(key, value)
+        super(TPGM, self).__setattr__(key, value)
 
     def generate_node_sample(self, node, nodes_values):
         """
@@ -83,8 +84,7 @@ class Tpgm(object):
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
 
-    @staticmethod
-    def calculate_ll_datapoint(node, datapoint, theta, R):
+    def calculate_ll_datapoint(self, node, datapoint, theta_curr):
         """
         :return: returns (nll_datapoint, log_partition)
         """
@@ -92,8 +92,8 @@ class Tpgm(object):
         log_partition = 0
 
         exponents = []
-        dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
-        for kk in range(R+1):
+        dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
+        for kk in range(self.R+1):
             curr_exponent = dot_product * kk - gammaln(kk+1)
             exponents.append(curr_exponent)
 
@@ -101,21 +101,20 @@ class Tpgm(object):
         log_partition += max_exponent
 
         sum_of_rest = 0
-        for kk in range(R+1):
+        for kk in range(self.R+1):
             sum_of_rest += np.exp(exponents[kk] - max_exponent)
 
         log_partition += np.log(sum_of_rest)
 
         return dot_product * datapoint[node] - gammaln(datapoint[node] + 1) - log_partition, log_partition
 
-    @staticmethod
-    def calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition):
+    def calculate_grad_ll_datapoint(self, node, datapoint, theta_curr, log_partition):
         grad = np.zeros(datapoint.shape)
 
-        dot_product = np.dot(datapoint, theta) - theta[node] * datapoint[node] + theta[node]
+        dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
 
         log_partition_derivative_term = 0
-        for kk in range(1, R+1):
+        for kk in range(1, self.R+1):
             log_partition_derivative_term += np.exp(dot_product * kk - gammaln(kk+1) + np.log(kk) - log_partition)
 
         grad[node] = datapoint[node] - log_partition_derivative_term
@@ -125,52 +124,15 @@ class Tpgm(object):
 
         return grad
 
-    @staticmethod
-    def calculate_nll_and_grad_nll_datapoint(node, datapoint, theta, R):
-        ll, log_partition = Tpgm.calculate_ll_datapoint(node, datapoint, theta, R)
-        grad_ll = Tpgm.calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition)
+    def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
+        ll, log_partition = self.calculate_ll_datapoint(node, datapoint, theta_curr)
+        grad_ll = self.calculate_grad_ll_datapoint(node, datapoint, theta_curr, log_partition)
 
         return -ll, -grad_ll
 
-    @staticmethod
-    def calculate_nll_and_grad_nll(node, data, theta, R):
-        N = data.shape[0]
-
-        nll = 0
-        grad_nll = np.zeros((data.shape[1], ))
-
-        for ii in range(N):
-            nll_ii, grad_nll_ii = Tpgm.calculate_nll_and_grad_nll_datapoint(node, data[ii, :], theta, R)
-            nll += nll_ii
-            grad_nll += grad_nll_ii
-
-        nll = nll/N
-        grad_nll = grad_nll/N
-
-        return nll, grad_nll
-
-    @staticmethod
-    def calculate_nll(node, data, theta, R):
-        N = data.shape[0]
-
-        nll = 0
-
-        for ii in range(N):
-            nll -= Tpgm.calculate_ll_datapoint(node, data[ii, :], theta, R)[0]
-
-        nll = nll/N
-
-        return nll
-
-    @staticmethod
-    def provide_args(nr_nodes, other_args):
-        for ii in range(nr_nodes):
-            yield [ii] + other_args
-        return
-
-    @staticmethod
-    def fit(data, theta_init, alpha, R, condition=None, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
-            rel_tol=1e-3, abs_tol=1e-6):
+    # TODO: Need theta_init, R as initial model parameters.
+    def fit(self, data, alpha, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5, rel_tol=1e-3,
+            abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
         :param theta_init: starting parameter values;
@@ -184,12 +146,8 @@ class Tpgm(object):
         :return:
         """
 
-        f = Tpgm.calculate_nll
-        f_and_grad_f = Tpgm.calculate_nll_and_grad_nll
-
-        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R], condition, max_iter, max_line_search_iter, lambda_p, beta,
-                     rel_tol, abs_tol]
+        tail_args = [self, data, alpha, max_iter, max_line_search_iter, lambda_p, beta, rel_tol, abs_tol]
         nr_nodes = data.shape[1]
 
         with Pool(processes=4) as pool:
-            return pool.starmap(prox_grad, Tpgm.provide_args(nr_nodes, tail_args))
+            return pool.starmap(prox_grad, Model.provide_args(nr_nodes, tail_args))

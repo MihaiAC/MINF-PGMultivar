@@ -1,10 +1,11 @@
 import numpy as np
 from multiprocessing import Pool
 from scipy.special import gammaln
+from mpgm.mpgm.model import Model
 from mpgm.mpgm.solvers import prox_grad
 
 
-class Spgm(object):
+class SPGM(Model):
     """
     Class for generating samples from and fitting SPGM distributions.
     :param R: model parameter
@@ -31,16 +32,15 @@ class Spgm(object):
         if key == 'R0':
             assert type(value) is int and value > 0 and value < self.R, 'R0 must be a positive integer, smaller than R'
 
-        super(Spgm, self).__setattr__(key, value)
+        super(SPGM, self).__setattr__(key, value)
 
-    @staticmethod
-    def sufficient_statistics(node_value, R, R0):
-        if(node_value <= R0):
+    def sufficient_statistics(self, node_value):
+        if(node_value <= self.R0):
             return node_value
-        elif(node_value <= R):
-            return (-0.5 * (node_value ** 2) + R * node_value - 0.5 * (R0 ** 2)) / (R - R0)
+        elif(node_value <= self.R):
+            return (-0.5 * (node_value ** 2) + self.R * node_value - 0.5 * (self.R0 ** 2)) / (self.R - self.R0)
         else:
-            return 0.5 * (R + R0)
+            return 0.5 * (self.R + self.R0)
 
     def generate_node_sample(self, node, nodes_values):
         """
@@ -52,7 +52,7 @@ class Spgm(object):
         """
         nodes_values_suffst = []
         for node_value in nodes_values:
-            nodes_values_suffst.append(Spgm.sufficient_statistics(node_value, self.R, self.R0))
+            nodes_values_suffst.append(self.sufficient_statistics(node_value))
 
         uu = np.random.uniform(0, 1, 1)[0]
 
@@ -116,23 +116,21 @@ class Spgm(object):
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
 
-    @staticmethod
-    def calculate_ll_datapoint(node, datapoint, theta, R, R0):
+    def calculate_ll_datapoint(self, node, datapoint, theta_curr):
         """
         :return: returns (nll_datapoint, log_partition)
         """
         datapoint_sf = np.zeros((len(datapoint), ))
         for ii in range(len(datapoint)):
-            datapoint_sf[ii] = Spgm.sufficient_statistics(datapoint[ii], R, R0)
+            datapoint_sf[ii] = self.sufficient_statistics(datapoint[ii])
 
-        dot_product = np.dot(datapoint_sf, theta) - theta[node] * datapoint_sf[node] + theta[node]
+        dot_product = np.dot(datapoint_sf, theta_curr) - theta_curr[node] * datapoint_sf[node] + theta_curr[node]
 
         log_partition = np.exp(dot_product)
 
         return dot_product * datapoint_sf[node] - gammaln(datapoint[node]) - log_partition, log_partition, datapoint_sf
 
-    @staticmethod
-    def calculate_grad_ll_datapoint(node, datapoint, theta, R, R0, log_partition, datapoint_sf):
+    def calculate_grad_ll_datapoint(self, node, datapoint, theta_curr, log_partition, datapoint_sf):
         grad = np.zeros(datapoint.shape)
 
         grad[node] = datapoint_sf[node] - log_partition
@@ -142,65 +140,26 @@ class Spgm(object):
 
         return grad
 
-    @staticmethod
-    def calculate_nll_and_grad_nll_datapoint(node, datapoint, theta, R, R0):
-        ll, log_partition, datapoint_sf = Spgm.calculate_ll_datapoint(node, datapoint, theta, R, R0)
-        grad_ll = Spgm.calculate_grad_ll_datapoint(node, datapoint, theta, R, log_partition, datapoint_sf)
+    def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
+        ll, log_partition, datapoint_sf = self.calculate_ll_datapoint(node, datapoint, theta_curr)
+        grad_ll = self.calculate_grad_ll_datapoint(node, datapoint, theta_curr, log_partition, datapoint_sf)
 
         return -ll, -grad_ll
 
-    @staticmethod
-    def calculate_nll_and_grad_nll(node, data, theta, R, R0):
-        N = data.shape[0]
-
-        nll = 0
-        grad_nll = np.zeros((data.shape[1], ))
-
-        for ii in range(N):
-            nll_ii, grad_nll_ii = Spgm.calculate_nll_and_grad_nll_datapoint(node, data[ii, :], theta, R, R0)
-            nll += nll_ii
-            grad_nll += grad_nll_ii
-
-        nll = nll/N
-        grad_nll = grad_nll/N
-
-        return nll, grad_nll
-
-    @staticmethod
-    def calculate_nll(node, data, theta, R, R0):
-        N = data.shape[0]
-
-        nll = 0
-
-        for ii in range(N):
-            nll -= Spgm.calculate_ll_datapoint(node, data[ii, :], theta, R, R0)[0]
-
-        nll = nll/N
-
-        return nll
-
-    @staticmethod
-    def provide_args(nr_nodes, other_args):
-        for ii in range(nr_nodes):
-            yield [ii] + other_args
-        return
-
-    @staticmethod
-    def condition(node, theta, data, R, R0):
+    def condition(self, node, theta, data):
         conditions = 0
         for kk in range(data.shape[0]):
             datapoint = data[kk, :]
             datapoint_sf = np.zeros((len(datapoint), ))
             for ii, node_value in enumerate(datapoint):
-                datapoint_sf[ii] = Spgm.sufficient_statistics(node_value, R, R0)
+                datapoint_sf[ii] = self.sufficient_statistics(node_value)
             dot_product = np.dot(theta, datapoint_sf) - theta[node] * datapoint_sf[node] + theta[node]
             if(dot_product >= 0):
                 conditions += 1
         return conditions
 
-    @staticmethod
-    def fit(data, theta_init, alpha, R, R0, condition, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5,
-            rel_tol=1e-3, abs_tol=1e-6):
+    def fit(self, data, alpha, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5, rel_tol=1e-3,
+            abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
         :param theta_init: starting parameter values;
@@ -214,12 +173,8 @@ class Spgm(object):
         :return:
         """
 
-        f = Spgm.calculate_nll
-        f_and_grad_f = Spgm.calculate_nll_and_grad_nll
-
-        tail_args = [theta_init, alpha, data, f, f_and_grad_f, [R, R0], condition, max_iter, max_line_search_iter, lambda_p, beta,
-                     rel_tol, abs_tol]
+        tail_args = [self, data, alpha, data, max_iter, max_line_search_iter, lambda_p, beta, rel_tol, abs_tol]
         nr_nodes = data.shape[1]
 
         with Pool(processes=4) as pool:
-            return pool.starmap(prox_grad, Spgm.provide_args(nr_nodes, tail_args))
+            return pool.starmap(prox_grad, Model.provide_args(nr_nodes, tail_args))

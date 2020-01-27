@@ -2,7 +2,7 @@ import numpy as np
 import pickle
 import os
 from mpgm.mpgm.samplers import Sampler
-from mpgm.mpgm.tpgm import Tpgm
+from mpgm.mpgm.TPGM import TPGM
 generate_gibbs_samples = Sampler.generate_samples_gibbs()
 
 class Experiment:
@@ -67,7 +67,7 @@ def test_tpgm():
     rel_tol = 1e-6
     abs_tol = 1e-9
     condition = None
-    model_to_fit = Tpgm
+    model_to_fit = TPGM
     fit_params = dict({'theta_init': theta_init, 'alpha': alpha, 'R': R, 'max_iter': max_iter,
                        'max_line_search_iter': max_line_search_iter, 'lambda_p': lambda_p, 'beta': beta,
                        'rel_tol': rel_tol, 'abs_tol': abs_tol, 'condition': condition})
