@@ -164,7 +164,8 @@ class LPGM(Model):
                 return m
         return 0
 
-    def fit(self, data, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
+    def fit(self, data, max_iter=5000, max_line_search_iter=50, prox_grad_lambda_p=1.0, prox_grad_beta=0.5,
+            rel_tol=1e-3, abs_tol=1e-6):
         #nr_alphas = model_specific_params['nr_alphas']
         #lpgm_beta = model_specific_params['beta']
         #lpgm_m = model_specific_params['m']
@@ -173,7 +174,8 @@ class LPGM(Model):
         #seeds = model_specific_params['seeds']
 
         alpha_values = self.generate_alpha_values(data)
-        tail_args = [data, alpha_values, max_iter, max_line_search_iter, lambda_p, beta, rel_tol, abs_tol]
+        tail_args = [data, alpha_values, max_iter, max_line_search_iter, prox_grad_lambda_p, prox_grad_beta,
+                     rel_tol, abs_tol]
         nr_nodes = data.shape[1]
 
         with Pool(processes=4) as pool:

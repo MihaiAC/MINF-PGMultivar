@@ -158,8 +158,8 @@ class SPGM(Model):
                 conditions += 1
         return conditions
 
-    def fit(self, data, alpha, max_iter=5000, max_line_search_iter=50, lambda_p=1.0, beta=0.5, rel_tol=1e-3,
-            abs_tol=1e-6):
+    def fit(self, data, alpha, max_iter=5000, max_line_search_iter=50, prox_grad_lambda_p=1.0, prox_grad_beta=0.5,
+            rel_tol=1e-3, abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
         :param theta_init: starting parameter values;
@@ -173,7 +173,8 @@ class SPGM(Model):
         :return:
         """
 
-        tail_args = [self, data, alpha, data, max_iter, max_line_search_iter, lambda_p, beta, rel_tol, abs_tol]
+        tail_args = [self, data, alpha, data, max_iter, max_line_search_iter, prox_grad_lambda_p, prox_grad_beta,
+                     rel_tol, abs_tol]
         nr_nodes = data.shape[1]
 
         with Pool(processes=4) as pool:

@@ -3,7 +3,7 @@
 #TODO: For LPGM, they ignore the parameters theta_s (they are assumed to be 0 or unimportant and ignored). Is this a
 # correct approach? Can I do this for the other 2 methods too? Change the methods depending on the answer.
 # TODO: rewrite lpgm to use only matrix multiplications?
-# TODO: how to initialise theta_init?;
+# TODO: how to initialise theta_init?; Try different theta_init strategies.
 # TODO: rewrite prox_grad in order to remove node, data and include them into f and grad_f parameters + re-work
 #   fit methods.
 #TODO: add a specific variable list to each fit method.
