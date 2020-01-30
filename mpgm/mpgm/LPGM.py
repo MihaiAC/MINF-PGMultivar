@@ -32,7 +32,7 @@ class LPGM(Model):
         dots_Wi_beta = np.dot(data, theta_curr)
 
         nll = -np.dot(Y, dots_Wi_beta) + np.sum(np.exp(dots_Wi_beta))
-        grad_nll = -np.sum(W * (Y - np.exp(dots_Wi_beta)), axis=0)
+        grad_nll = -np.dot(Y - np.exp(dots_Wi_beta), W)
 
         nll = (nll/N) - 1 # exp(W[ii, node] * theta[node]) = exp(0) = 1; removing this.
         grad_nll = grad_nll/N
@@ -75,24 +75,26 @@ class LPGM(Model):
         prox_grad_unmutable_params = [max_iter, max_line_search_iter, lambda_p, beta, rel_tol, abs_tol]
 
         thetas_main = np.zeros((len(alpha_values), data.shape[1]))
-        thetas_subsamples = np.zeros(self.lpgm_B, len(alpha_values), data.shape[1])
+        thetas_subsamples = np.zeros((self.lpgm_B, len(alpha_values), data.shape[1]))
 
         local_rng = np.random.RandomState(self.seeds[node])
 
         theta_init = local_rng.normal(0, 0.0001, data.shape[1])
+        self.theta = theta_init
         for ii, alpha in enumerate(alpha_values):
-            theta_warm = prox_grad(node, theta_init, alpha, data, *prox_grad_unmutable_params)[0]
+            theta_warm = prox_grad(node, self, data, alpha, *prox_grad_unmutable_params)[0]
             thetas_main[ii, :] = theta_warm
-            theta_init = theta_warm
+            self.theta = theta_warm
 
         for bb in range(self.lpgm_B):
             theta_init = local_rng.normal(0, 0.0001, data.shape[1])
+            self.theta = theta_init
             subsample_indices = local_rng.choice(data.shape[0], self.lpgm_m, replace=False)
             subsampled_data = data[subsample_indices, :]
             for ii, alpha in enumerate(alpha_values):
-                theta_warm = prox_grad(node, theta_init, alpha, subsampled_data, *prox_grad_unmutable_params)[0]
+                theta_warm = prox_grad(node, self, subsampled_data, alpha, *prox_grad_unmutable_params)[0]
                 thetas_subsamples[bb, ii, :] = theta_warm
-                theta_init = theta_warm
+                self.theta = theta_warm
 
         return thetas_main, thetas_subsamples
 

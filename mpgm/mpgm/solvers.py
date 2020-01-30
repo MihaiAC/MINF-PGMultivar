@@ -59,20 +59,18 @@ def prox_grad(node, model, data, alpha, max_iter=5000, max_line_search_iter=50, 
         if sw:
             theta_k_2 = theta_k_1
             theta_k_1 = z
-            likelihoods[k] = f_z
+            likelihoods[k-1] = f_z
 
             if condition is not None:
-                conditions[k] = condition(node, z, data)
+                conditions[k-1] = condition(node, z, data)
 
-            if (k > 2 and (np.abs(f_z - likelihoods[k - 1]) < abs_tol or
-                           (np.abs(f_z - likelihoods[k - 1]) / min(np.abs(f_z),
-                                                                   np.abs(likelihoods[k - 1]))) < rel_tol)):
+            if (k > 2 and (np.abs(f_z - likelihoods[k - 2]) < abs_tol or
+                           (np.abs(f_z - likelihoods[k - 2]) / min(np.abs(f_z),
+                                                                   np.abs(likelihoods[k - 2]))) < rel_tol)):
                 converged = True
                 break
         else:
-            print('Line search failed to converge for node ' + str(node))
             break
-    print('prox_grad for node ' + str(node) + ' has finished. Converged?: ' + str(converged))
     return theta_k_1, likelihoods, conditions, converged
 
 

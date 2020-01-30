@@ -9,6 +9,7 @@
 #TODO: add a specific variable list to each fit method.
 #TODO: different theta_inits in lpgm? DUNNO.
 #TODO: map must present elements always in the same order.
+#TODO: add logging instead of print statements + handle the file requiring user input thing.
 
 
 # TODO: MAKE SURE THAT THE SEEDS GIVEN TO LPGM FIT ARE DIFFERENT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
