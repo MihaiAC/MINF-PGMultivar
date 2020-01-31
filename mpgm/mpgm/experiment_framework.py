@@ -27,10 +27,10 @@ class Experiment:
         self.data = np.load(self.data_file_path + 'samples.npy')
         nr_samples, nr_variables = self.data.shape
 
-        if(theta_init == None):
-            theta_init = np.random.normal(0, 0.0001, nr_variables)
+        if(theta_init is None):
+            theta_init = np.random.normal(0, 0.001, nr_variables)
 
-        if(theta_quad_init == None):
+        if(theta_quad_init is None):
             theta_quad_init = -0.5 * np.ones((nr_variables, ))
 
         if(alpha == None):
@@ -109,11 +109,11 @@ class Experiment:
         return fit_model_theta, likelihoods, conditions, converged
 
 def run_test_experiment():
-    exp = Experiment('test', 'TPGM', 'TPGM_fit_test')
+    exp = Experiment('test', 'TPGM', 'TPGM_fit_test', random_seed=1337)
     exp.run_experiment()
 
 def run_test_lpgm_experiment():
     exp = Experiment('test', 'LPGM', 'LPGM_fit_test', lpgm_m=10)
     exp.run_experiment()
 
-run_test_lpgm_experiment()
+run_test_experiment()

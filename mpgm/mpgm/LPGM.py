@@ -96,6 +96,7 @@ class LPGM(Model):
                 thetas_subsamples[bb, ii, :] = theta_warm
                 self.theta = theta_warm
 
+        print('Node ' + str(node) + ' done.')
         return thetas_main, thetas_subsamples
 
     @staticmethod
@@ -103,7 +104,7 @@ class LPGM(Model):
         thetas_main = np.zeros((M, p, p))
         thetas_subsamples = np.zeros((M, B, p, p))
 
-        for ii in all_thetas:
+        for ii in range(len(all_thetas)):
             for alpha_index in range(M):
                 thetas_main[alpha_index, ii, :] = all_thetas[ii][0][alpha_index, :]
                 for b in range(B):
@@ -138,11 +139,11 @@ class LPGM(Model):
     @staticmethod
     def make_abars_subsamples(ahats_subsamples):
         M, B, p, _ = ahats_subsamples.shape
-        abars_subsamples = np.zeros(M, p, p)
+        abars_subsamples = np.zeros((M, p, p))
 
         for m in range(M):
             for b in range(B):
-                abars_subsamples[m, :, :] += abars_subsamples[m, b, :, :]
+                abars_subsamples[m, :, :] += ahats_subsamples[m, b, :, :]
             abars_subsamples[m, :, :] = abars_subsamples[m, :, :] / B
         return abars_subsamples
 
@@ -192,3 +193,17 @@ class LPGM(Model):
         alpha_opt_index = self.select_optimal_alpha(abars_subsamples)
 
         return alpha_values[alpha_opt_index], ahats_main[alpha_opt_index, :, :]
+'''
+lpgm = LPGM(10, 10, 0.05, 100, np.zeros((10, )))
+nr_variables = 10
+all_thetas = []
+for kk in range(nr_variables):
+    sub_thetas_main = np.random.normal(0, 0.01, (100, nr_variables))
+    sub_thetas_subsamples = np.random.normal(0, 0.01, (10, 100, 10))
+    all_thetas.append((sub_thetas_main, sub_thetas_subsamples))
+thetas_main, thetas_subsamples = LPGM.make_matrices(all_thetas, nr_variables, 100, 10)
+ahats_main, ahats_subsamples = LPGM.make_ahats(thetas_main, thetas_subsamples)
+abars_subsamples = LPGM.make_abars_subsamples(ahats_subsamples)
+alpha_opt_index = lpgm.select_optimal_alpha(abars_subsamples)
+print(ahats_main[alpha_opt_index, :, :])
+'''

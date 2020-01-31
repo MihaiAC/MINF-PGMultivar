@@ -1,5 +1,4 @@
 import numpy as np
-from decimal import Decimal
 from multiprocessing import Pool
 from mpgm.mpgm.solvers import prox_grad
 from mpgm.mpgm.model import Model
@@ -41,14 +40,13 @@ class TPGM(Model):
         :return: A sample from the node-conditional probability of our node.
         """
 
-        uu = np.random.uniform(0, 1, 1)[0]
-        uu = Decimal(uu)
+        uu = np.random.uniform(0, 1)
 
         prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, nodes_values)
         cdf = prob1
 
         for node_value in range(1, self.R + 1):
-            if uu.compare(Decimal(cdf)) == Decimal('-1'):
+            if uu < cdf:
                 return node_value-1
             cdf += self.node_cond_prob(node, node_value, nodes_values, dot_product, partition_max_exp, partition_reduced)[0]
 
@@ -113,9 +111,26 @@ class TPGM(Model):
 
         dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
 
-        log_partition_derivative_term = 0
+        #log_partition_derivative_term = 0
+        #for kk in range(1, self.R+1):
+        #    log_partition_derivative_term += np.exp(dot_product * kk - gammaln(kk+1) + np.log(kk) - log_partition)
+        exponents_numerator = []
+        exponents_denominator = []
         for kk in range(1, self.R+1):
-            log_partition_derivative_term += np.exp(dot_product * kk - gammaln(kk+1) + np.log(kk) - log_partition)
+            exponents_numerator.append(dot_product * kk - gammaln(kk+1) + np.log(kk))
+            exponents_denominator.append(dot_product * kk - gammaln(kk+1))
+
+        max_exponent_numerator = max(exponents_numerator)
+        max_exponent_denominator = max(exponents_denominator)
+
+        sum_numerator = 0
+        sum_denominator = 0
+        for ii in range(self.R):
+            sum_numerator += np.exp(exponents_numerator[ii] - max_exponent_numerator)
+            sum_denominator += np.exp(exponents_denominator[ii] - max_exponent_denominator)
+
+        log_partition_derivative_term = np.exp(max_exponent_numerator - max_exponent_denominator) * \
+                                        (sum_numerator/sum_denominator)
 
         grad[node] = datapoint[node] - log_partition_derivative_term
         for ii in range(datapoint.shape[0]):
@@ -150,5 +165,9 @@ class TPGM(Model):
                      abs_tol]
         nr_nodes = data.shape[1]
 
-        with Pool(processes=4) as pool:
-            return pool.starmap(prox_grad, Model.provide_args(nr_nodes, tail_args))
+        return [prox_grad(0, *tail_args)]
+
+        #with Pool(processes=4) as pool:
+        #    args = list(Model.provide_args(nr_nodes, tail_args))
+        #    return pool.starmap(prox_grad, args)
+

@@ -45,20 +45,32 @@ def prox_grad(node, model, data, alpha, max_iter=5000, max_line_search_iter=50, 
         w_k = k / (k + 3)
         y_k = theta_k_1 + w_k * (theta_k_1 - theta_k_2)
         f_y_k, grad_y_k = f_and_grad_f(node, data, y_k)
+        #print(theta_k_1)
 
         sw = False
         for _ in range(max_line_search_iter):
             z = soft_threshold(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha)
+            #print(z)
             f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * (np.linalg.norm(z - y_k) ** 2)
+            #print(f_tilde)
+            #print('------------------------')
             f_z = f(node, data, z)  # NLL at current step.
+            #print(f_z)
             if f_z <= f_tilde:
                 sw = True
                 break
             else:
                 lambda_k = lambda_k * beta
         if sw:
+            #print(theta_k_1)
+            #print(theta_k_2)
+            #print(z)
+            #print(lambda_k)
+            #print('----------------------')
+            print(z)
             theta_k_2 = theta_k_1
             theta_k_1 = z
+
             likelihoods[k-1] = f_z
 
             if condition is not None:
@@ -71,6 +83,7 @@ def prox_grad(node, model, data, alpha, max_iter=5000, max_line_search_iter=50, 
                 break
         else:
             break
+    print(likelihoods[0:10])
     return theta_k_1, likelihoods, conditions, converged
 
 

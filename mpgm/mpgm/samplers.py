@@ -98,7 +98,7 @@ class SamplerWrapper():
                  theta_quad=None, sampler_init_values=None):
         np.random.seed(random_seed)
 
-        if(sampler_init_values == None):
+        if(sampler_init_values is None):
             sampler_init_values = np.random.randint(0, 3, (nr_variables, ))
 
         if(graph_generator_name == 'scale_free'):
@@ -114,7 +114,7 @@ class SamplerWrapper():
             self.generator_model_params = dict({'R': R})
         elif(generator_model_name == 'QPGM'):
             self.generator_model = QPGM
-            assert theta_quad != None, 'Invalid theta_quad value'
+            assert theta_quad is not None, 'Invalid theta_quad value'
             self.generator_model_params = dict({'theta_quad': theta_quad})
         elif(generator_model_name == 'SPGM'):
             self.generator_model = SPGM

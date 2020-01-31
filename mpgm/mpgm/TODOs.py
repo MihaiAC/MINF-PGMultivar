@@ -10,6 +10,8 @@
 #TODO: different theta_inits in lpgm? DUNNO.
 #TODO: map must present elements always in the same order.
 #TODO: add logging instead of print statements + handle the file requiring user input thing.
+#TODO: (after fixing the mistakes and figuring out why it doesn't work): derive mathematical bounds for TPGM, SPGM, QPGM?
+#TODO: use log probability for Gibbs sampling.
 
 
 # TODO: MAKE SURE THAT THE SEEDS GIVEN TO LPGM FIT ARE DIFFERENT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
