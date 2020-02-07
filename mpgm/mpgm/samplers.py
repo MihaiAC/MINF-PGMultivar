@@ -139,7 +139,7 @@ class SamplerWrapper():
 
 def generate_TPGM_samples1():
     sampler_wrapper = SamplerWrapper('scale_free', 'TPGM', 'gibbs', 'test', random_seed=145, weak_std=0.03,
-                                     nr_samples=30, burn_in=200, thinning_nr=300, nr_variables=10, R=10)
+                                     nr_samples=60, burn_in=200, thinning_nr=300, nr_variables=10, R=10)
     sampler_wrapper.generate_samples()
 
 def generate_TPGM_samples_higher_thinning_nr():

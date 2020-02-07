@@ -109,11 +109,11 @@ class Experiment:
         return fit_model_theta, likelihoods, conditions, converged
 
 def run_test_experiment():
-    exp = Experiment('test', 'TPGM', 'TPGM_fit_test', random_seed=1337)
+    exp = Experiment('test', 'TPGM', 'TPGM_fit_test', alpha=0.1, theta_init=np.random.uniform(0, 1/(10 * 10), (10, )), random_seed=1337)
     exp.run_experiment()
 
 def run_test_lpgm_experiment():
-    exp = Experiment('test', 'LPGM', 'LPGM_fit_test', lpgm_m=10)
+    exp = Experiment('test', 'LPGM', 'LPGM_fit_test', lpgm_m=24)
     exp.run_experiment()
 
-run_test_experiment()
+run_test_lpgm_experiment()

@@ -30,7 +30,7 @@ class Model():
         nll = 0
 
         for ii in range(N):
-            nll -= self.calculate_ll_datapoint(node, data[ii, :], theta_curr)[0]
+            nll += -self.calculate_ll_datapoint(node, data[ii, :], theta_curr)[0]
 
         nll = nll/N
 

@@ -1,6 +1,6 @@
 import numpy as np
 from multiprocessing import Pool
-from mpgm.mpgm.solvers import prox_grad
+from mpgm.mpgm.solvers import prox_grad, grad_descent
 from mpgm.mpgm.model import Model
 from scipy.special import gammaln
 
@@ -78,6 +78,7 @@ class TPGM(Model):
             for kk in range(self.R+1):
                 partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
 
+        min_exp = dot_product * node_value - gammaln(node_value+1)
         cond_prob = np.exp(dot_product * node_value - gammaln(node_value+1) - partition_max_exp)/partition_reduced
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
@@ -104,7 +105,9 @@ class TPGM(Model):
 
         log_partition += np.log(sum_of_rest)
 
-        return dot_product * datapoint[node] - gammaln(datapoint[node] + 1) - log_partition, log_partition
+        # TODO: remove debug statement.
+        ll = dot_product * datapoint[node] - gammaln(datapoint[node] + 1) - log_partition
+        return ll, log_partition
 
     def calculate_grad_ll_datapoint(self, node, datapoint, theta_curr, log_partition):
         grad = np.zeros(datapoint.shape)
@@ -116,6 +119,7 @@ class TPGM(Model):
         #    log_partition_derivative_term += np.exp(dot_product * kk - gammaln(kk+1) + np.log(kk) - log_partition)
         exponents_numerator = []
         exponents_denominator = []
+        exponents_denominator.append(-gammaln(1))
         for kk in range(1, self.R+1):
             exponents_numerator.append(dot_product * kk - gammaln(kk+1) + np.log(kk))
             exponents_denominator.append(dot_product * kk - gammaln(kk+1))
@@ -128,6 +132,7 @@ class TPGM(Model):
         for ii in range(self.R):
             sum_numerator += np.exp(exponents_numerator[ii] - max_exponent_numerator)
             sum_denominator += np.exp(exponents_denominator[ii] - max_exponent_denominator)
+        sum_denominator += np.exp(exponents_denominator[self.R] - max_exponent_denominator)
 
         log_partition_derivative_term = np.exp(max_exponent_numerator - max_exponent_denominator) * \
                                         (sum_numerator/sum_denominator)
@@ -165,9 +170,12 @@ class TPGM(Model):
                      abs_tol]
         nr_nodes = data.shape[1]
 
-        return [prox_grad(0, *tail_args)]
+        with Pool(processes=4) as pool:
+            args = list(Model.provide_args(nr_nodes, tail_args))
+            return pool.starmap(grad_descent, args)
 
-        #with Pool(processes=4) as pool:
-        #    args = list(Model.provide_args(nr_nodes, tail_args))
-        #    return pool.starmap(prox_grad, args)
-
+if __name__ == '__main__':
+    data = np.load('Samples/test/samples.npy')
+    alpha = 0.1
+    tpgm = TPGM(theta=np.zeros((10, )), R=10)
+    grad_descent(0, tpgm, data, alpha)
