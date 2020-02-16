@@ -9,8 +9,8 @@ from mpgm.mpgm.LPGM import LPGM
 class Experiment:
     def __init__(self, samples_name, model_to_fit_name, experiment_name, random_seed=200, R=10,
                  R0 = 5, theta_init=None, theta_quad_init=None, alpha=None, lpgm_m=None, lpgm_B = 10, lpgm_beta=0.05,
-                 nr_alphas=100, max_iter=1000, max_line_search_iter=100, prox_grad_lambda_p=1.0, prox_grad_beta=0.5,
-                 rel_tol=1e-6, abs_tol=1e-9):
+                 nr_alphas=100, prox_grad_accelerated=False, max_iter=1000, max_line_search_iter=100,
+                 prox_grad_lambda_p=1.0, prox_grad_beta=0.5, rel_tol=1e-6, abs_tol=1e-9):
         '''
         :param data_file_path: Location of the file containing the data we train our model on.
         :param model_to_fit: The model we fit.
@@ -28,17 +28,18 @@ class Experiment:
         nr_samples, nr_variables = self.data.shape
 
         if(theta_init is None):
-            theta_init = np.random.normal(0, 0.001, nr_variables)
+            theta_init = np.zeros((nr_variables, nr_variables))
 
         if(theta_quad_init is None):
-            theta_quad_init = -0.5 * np.ones((nr_variables, ))
+            theta_quad_init = -0.01 * np.ones((nr_variables, ))
 
         if(alpha == None):
             alpha = np.sqrt(np.log(nr_variables)/nr_samples)
 
-        self.prox_grad_params = dict({'alpha': alpha, 'max_iter': max_iter, 'max_line_search_iter': max_line_search_iter,
-                                 'prox_grad_lambda_p': prox_grad_lambda_p, 'prox_grad_beta': prox_grad_beta,
-                                 'rel_tol': rel_tol, 'abs_tol': abs_tol})
+        self.prox_grad_params = dict({'alpha': alpha, 'prox_grad_accelerated': prox_grad_accelerated,
+                                      'max_iter': max_iter, 'max_line_search_iter': max_line_search_iter,
+                                      'prox_grad_lambda_p': prox_grad_lambda_p, 'prox_grad_beta': prox_grad_beta,
+                                       'rel_tol': rel_tol, 'abs_tol': abs_tol})
 
         self.model_to_fit_name = model_to_fit_name
         if(model_to_fit_name == 'TPGM'):
@@ -86,7 +87,7 @@ class Experiment:
                 pickle.dump(conditions, f)
 
         elif(self.model_to_fit_name == 'LPGM'):
-            np.save(experiment_folder + 'optimal_theta.npy', np.array([fit_data[0]]))
+            np.save(experiment_folder + 'optimal_alpha.npy', np.array([fit_data[0]]))
             np.save(experiment_folder + 'fit_model_theta.npy', fit_data[1])
 
         else:
@@ -108,12 +109,18 @@ class Experiment:
 
         return fit_model_theta, likelihoods, conditions, converged
 
-def run_test_experiment():
-    exp = Experiment('test', 'TPGM', 'TPGM_fit_test', alpha=0.1, theta_init=np.random.uniform(0, 1/(10 * 10), (10, )), random_seed=1337)
+def run_test_tpgm_experiment():
+    exp = Experiment('lattice_test', 'TPGM', 'TPGM_fit_test', alpha=0.1, theta_init=np.zeros((10, 10)), random_seed=1337,
+                     prox_grad_accelerated=False)
+    exp.run_experiment()
+
+def run_test_qpgm_experiment():
+    exp = Experiment('QPGM_test', 'QPGM', 'QPGM_fit_test', alpha=0.1, random_seed=123)
     exp.run_experiment()
 
 def run_test_lpgm_experiment():
     exp = Experiment('test', 'LPGM', 'LPGM_fit_test', lpgm_m=24)
     exp.run_experiment()
 
-run_test_lpgm_experiment()
+if __name__ == '__main__':
+    run_test_tpgm_experiment()

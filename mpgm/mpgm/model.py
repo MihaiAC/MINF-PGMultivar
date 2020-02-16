@@ -12,7 +12,7 @@ class Model():
         N = data.shape[0]
 
         nll = 0
-        grad_nll = np.zeros((data.shape[1], ))
+        grad_nll = np.zeros((len(theta_curr), ))
 
         for ii in range(N):
             nll_ii, grad_nll_ii = self.calculate_nll_and_grad_nll_datapoint(node, data[ii, :], theta_curr)

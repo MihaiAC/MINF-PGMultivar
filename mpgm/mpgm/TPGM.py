@@ -3,6 +3,7 @@ from multiprocessing import Pool
 from mpgm.mpgm.solvers import prox_grad, grad_descent
 from mpgm.mpgm.model import Model
 from scipy.special import gammaln
+from tqdm import tqdm
 
 
 class TPGM(Model):
@@ -19,6 +20,7 @@ class TPGM(Model):
         Constructor for TPGM class.
 
         :param theta: N x N matrix, given when we want to generate samples from an existing distribution.
+                      N x N array, representing the starting theta values for when we want to fit the model.
         :param R: maximum count value, should be an integer.
         """
         self.R = R
@@ -150,9 +152,18 @@ class TPGM(Model):
 
         return -ll, -grad_ll
 
+    @staticmethod
+    def call_prox_grad_wrapper(packed_params):
+        #model_args = packed_params[0]
+        #prox_grad_args = packed_params[1]
+        #node = packed_params[2]
+
+        model = TPGM(*packed_params[0])
+        return packed_params[2], prox_grad(packed_params[2], model, *packed_params[1])
+
     # TODO: Need theta_init, R as initial model parameters.
-    def fit(self, data, alpha, max_iter=5000, max_line_search_iter=50, prox_grad_lambda_p=1.0, prox_grad_beta=0.5,
-            rel_tol=1e-3, abs_tol=1e-6):
+    def fit(self, data, alpha, prox_grad_accelerated=False, max_iter=5000, max_line_search_iter=50, prox_grad_lambda_p=1.0,
+            prox_grad_beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
         """
         :param data: N X P matrix; each row is a datapoint;
         :param theta_init: starting parameter values;
@@ -166,13 +177,22 @@ class TPGM(Model):
         :return:
         """
 
-        tail_args = [self, data, alpha, max_iter, max_line_search_iter, prox_grad_lambda_p, prox_grad_beta, rel_tol,
-                     abs_tol]
+        prox_grad_args = [data, alpha, prox_grad_accelerated, max_iter, max_line_search_iter, prox_grad_lambda_p,
+                          prox_grad_beta, rel_tol, abs_tol]
+        model_args = [self.theta, self.R]
+
         nr_nodes = data.shape[1]
 
+        ordered_results = [()] * nr_nodes
         with Pool(processes=4) as pool:
-            args = list(Model.provide_args(nr_nodes, tail_args))
-            return pool.starmap(grad_descent, args)
+            for result in tqdm(pool.imap_unordered(TPGM.call_prox_grad_wrapper, iter(((model_args, prox_grad_args, x) for x in range(nr_nodes))), chunksize=1), total=nr_nodes):
+                ordered_results[result[0]] = result[1]
+
+        return ordered_results
+
+        #with Pool(processes=4) as pool:
+        #    args = list(Model.provide_args(nr_nodes, tail_args))
+        #    return pool.starmap(prox_grad, args)
 
 if __name__ == '__main__':
     data = np.load('Samples/test/samples.npy')

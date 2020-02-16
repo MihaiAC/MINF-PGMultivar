@@ -1,5 +1,4 @@
 import numpy as np
-from decimal import Decimal
 from multiprocessing import Pool
 from mpgm.mpgm.solvers import prox_grad
 from mpgm.mpgm.model import Model
@@ -17,22 +16,22 @@ class QPGM(Model):
     def __init__(self, theta=None, theta_quad=None):
         self.theta = theta
         self.theta_quad = theta_quad
+        self.break_fit_if_condition_broken = True
 
     def generate_node_sample(self, node, nodes_values):
         uu = np.random.uniform(0, 1, 1)[0]
-        uu = Decimal(uu)
 
         prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, nodes_values)
         cdf = prob1
 
         current_node_value = 1
-        while uu.compare(Decimal(cdf)) == Decimal('1'):
+        while uu > cdf:
             cdf += self.node_cond_prob(node, current_node_value, nodes_values, dot_product, partition_max_exp, partition_reduced)[0]
             current_node_value += 1
 
         return current_node_value - 1
 
-    def node_cond_prob(self, node, current_node_value, nodes_values, partition_max_exp=None, partition_reduced=None):
+    def node_cond_prob(self, node, current_node_value, nodes_values, dot_product=None, partition_max_exp=None, partition_reduced=None):
         """
         Calculates the probability of node having the provided value given the other nodes.
 
@@ -43,8 +42,9 @@ class QPGM(Model):
         :param partition_reduced: partition divided by exp(partition_max_exp).
         :return: A tuple containing the likelihood, the value of the partition function and the dot_product in this order.
         """
-        dot_product = np.dot(self.theta[node, :], nodes_values) - self.theta[node][node] * nodes_values[node] + \
-                      self.theta[node][node]
+        if(dot_product == None):
+            dot_product = np.dot(self.theta[node, :], nodes_values) - self.theta[node][node] * nodes_values[node] + \
+                self.theta[node][node]
 
         if partition_reduced is None:
             partition_exponents = []
@@ -52,16 +52,16 @@ class QPGM(Model):
             kk = 0
             curr_exp = 1
             #TODO: good stopping condition?
-            while curr_exp > np.log(1e-15):
+            while len(partition_exponents) < 200 or (len(partition_exponents) <= 500 and np.exp(curr_exp)/np.exp(partition_max_exp) > 1e-10):
                 curr_exp = dot_product * kk + self.theta_quad[node] * (kk ** 2)
                 partition_exponents.append(curr_exp)
                 if partition_max_exp < curr_exp:
                     partition_max_exp = curr_exp
                 kk += 1
 
-        partition_reduced = 0
-        for exponent in partition_exponents:
-            partition_reduced += np.exp(exponent - partition_max_exp)
+            partition_reduced = 0
+            for exponent in partition_exponents:
+                partition_reduced += np.exp(exponent - partition_max_exp)
 
         cond_prob = np.exp(dot_product * current_node_value + self.theta_quad[node] * (current_node_value ** 2) - partition_max_exp)/partition_reduced
 
@@ -81,12 +81,14 @@ class QPGM(Model):
         ll += dot_product
         ll *= datapoint[node]
         ll += theta_quad * datapoint[node] ** 2
+        if(theta_quad > 0):
+            print(str(theta_quad) + ' ' + str(self.condition(node, theta_curr, datapoint)))
         ll = ll - 0.5 * np.log(2 * np.pi) + 0.5 * np.log(-2 * theta_quad) + 1/(4 * theta_quad) * (dot_product ** 2)
 
-        return ll
+        return (ll, )
 
     def calculate_grad_ll_datapoint(self, node, datapoint, theta_curr):
-        grad = np.zeros(datapoint.shape)
+        grad = np.zeros(theta_curr.shape)
 
         theta_normal = theta_curr[:-1]
         theta_quad = theta_curr[-1]
@@ -104,7 +106,7 @@ class QPGM(Model):
         return grad
 
     def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
-        ll = self.calculate_ll_datapoint(node, datapoint, theta_curr)
+        ll = self.calculate_ll_datapoint(node, datapoint, theta_curr)[0]
         grad_ll = self.calculate_grad_ll_datapoint(node, datapoint, theta_curr)
 
         return -ll, -grad_ll
@@ -131,5 +133,15 @@ class QPGM(Model):
                      abs_tol]
         nr_nodes = data.shape[1]
 
+        print(self.theta.shape)
+        self.theta = np.hstack((self.theta, np.reshape(self.theta_quad, (nr_nodes, 1))))
+
         with Pool(processes=4) as pool:
             return pool.starmap(prox_grad, Model.provide_args(nr_nodes, tail_args))
+
+if __name__ == '__main__':
+    data = np.load('Samples/QPGM_test/samples.npy')
+    alpha = 0.1
+    qpgm = QPGM(theta=np.zeros((10, 10)), theta_quad=-0.5 * np.ones((10, )))
+    qpgm.theta = np.hstack((qpgm.theta, np.reshape(qpgm.theta_quad, (10, 1))))
+    prox_grad(0, qpgm, data, alpha)

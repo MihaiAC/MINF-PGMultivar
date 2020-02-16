@@ -6,6 +6,7 @@ from mpgm.mpgm.TPGM import TPGM
 from mpgm.mpgm.QPGM import QPGM
 from mpgm.mpgm.SPGM import SPGM
 from mpgm.mpgm.auxiliary_methods import generate_scale_free_graph
+from mpgm.mpgm.auxiliary_methods import generate_lattice_graph
 from pathlib import Path
 
 class Sampler():
@@ -95,7 +96,7 @@ class SamplerWrapper():
     def __init__(self, graph_generator_name, generator_model_name, sampling_method_name, samples_name, random_seed=200,
                  nr_variables=10, weak_pos_mean=0.04, weak_neg_mean=-0.04, weak_std=0.03, scale_free_alpha=0.1,
                  scale_free_beta=0.8, scale_free_gamma=0.1, R=10, R0=5, nr_samples=50, burn_in=200, thinning_nr=50,
-                 theta_quad=None, sampler_init_values=None):
+                 theta_quad=None, sampler_init_values=None, lattice_edge_weight=0.04, sparsity_level=0):
         np.random.seed(random_seed)
 
         if(sampler_init_values is None):
@@ -106,6 +107,10 @@ class SamplerWrapper():
             self.graph_generator_params = dict({'nr_variables': nr_variables, 'weak_pos_mean': weak_pos_mean,
                                 'weak_neg_mean': weak_neg_mean, 'weak_std': weak_std, 'alpha': scale_free_alpha,
                                 'beta': scale_free_beta, 'gamma': scale_free_gamma})
+        elif(graph_generator_name == 'lattice'):
+            self.graph_generator = generate_lattice_graph
+            self.graph_generator_params = dict({'nr_variables': nr_variables, 'lattice_edge_weight': lattice_edge_weight,
+                                                'sparsity_level': sparsity_level})
         else:
             raise ValueError('Invalid graph generator name.')
 
@@ -139,7 +144,7 @@ class SamplerWrapper():
 
 def generate_TPGM_samples1():
     sampler_wrapper = SamplerWrapper('scale_free', 'TPGM', 'gibbs', 'test', random_seed=145, weak_std=0.03,
-                                     nr_samples=60, burn_in=200, thinning_nr=300, nr_variables=10, R=10)
+                                     nr_samples=60, burn_in=5000, thinning_nr=1000, nr_variables=10, R=10)
     sampler_wrapper.generate_samples()
 
 def generate_TPGM_samples_higher_thinning_nr():
@@ -147,4 +152,16 @@ def generate_TPGM_samples_higher_thinning_nr():
                                      nr_samples=30, burn_in=200, thinning_nr=1000, nr_variables=10, R=10)
     sampler_wrapper.generate_samples()
 
-generate_TPGM_samples1()
+def generate_QPGM_samples_initial():
+    sampler_wrapper = SamplerWrapper('scale_free', 'QPGM', 'gibbs', 'QPGM_test', random_seed=145, weak_std=0.03, nr_samples=60,
+                                     burn_in=5000, thinning_nr=1500, nr_variables=10, theta_quad=np.random.normal(-0.08, 0.005, (10, )))
+    sampler_wrapper.generate_samples()
+
+def generate_TPGM_samples_lattice():
+    sampler_wrapper = SamplerWrapper('lattice', 'TPGM', 'gibbs', 'lattice_test', random_seed=145, lattice_edge_weight=0.1,
+                                     nr_samples=60, burn_in=5000, thinning_nr=1000, nr_variables=10, R=10, sparsity_level=0)
+    sampler_wrapper.generate_samples()
+
+
+if __name__ == '__main__':
+    generate_TPGM_samples_lattice()
