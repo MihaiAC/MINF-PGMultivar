@@ -1,7 +1,8 @@
 import numpy as np
+import sys
 from multiprocessing import Pool
-from mpgm.mpgm.solvers import prox_grad
 from mpgm.mpgm.model import Model
+from tqdm import tqdm
 
 
 class QPGM(Model):
@@ -114,34 +115,111 @@ class QPGM(Model):
     def condition(self, node, theta_curr, data):
         return theta_curr[-1] < 0
 
-    def fit(self, data, alpha, max_iter=5000, max_line_search_iter=50, prox_grad_lambda_p=1.0, prox_grad_beta=0.5,
-            rel_tol=1e-3, abs_tol=1e-6):
+    @staticmethod
+    def fit_prox_grad(node, model, data, alpha, qtp_c=1e4, accelerated=False, max_iter=5000, max_line_search_iter=50,
+                      line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
         """
-        :param data: N X P matrix; each row is a datapoint;
-        :param theta_init: starting parameter values;
-        :param alpha: regularization parameter;
-        :param max_iter:
-        :param max_line_search_iter:
-        :param lambda_p: step size for the proximal gradient descent method;
-        :param beta:
-        :param rel_tol:
-        :param abs_tol:
-        :return:
-        """
+            Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
+                package.
+            :param model: Model to be fit by prox_grad. Must implement "calculate_nll_and_grad_nll", "calculate_nll" and a
+                condition function to be evaluated after each iteration (necessary for QPGM, SPGM) as per the Model "interface".
+            :param data: Data used to fit the model.
+            :param alpha: L1 regularization parameter.
+            :param node: The node we're doing regression on.
+            :param max_iter: Maximum iterations allowed for the algorithm.
+            :param max_line_search_iter: Maximum iterations allowed for the line search performed at every iteration step.
+            :param lambda_p: Initial step-size.
+            :param beta: Line search parameter.
+            :param rel_tol: Relative tolerance value for early stopping.
+            :param abs_tol: Absolute tolerance value for early stopping. Should be 1e-3 * rel_tol.
+            :return: (parameters, likelihood_values, converged) - tuple containing parameters and the NLL value for each
+                iteration;
+            """
 
-        tail_args = [self, data, alpha, max_iter, max_line_search_iter, prox_grad_lambda_p, prox_grad_beta, rel_tol,
-                     abs_tol]
-        nr_nodes = data.shape[1]
+        f = model.calculate_nll
+        f_and_grad_f = model.calculate_nll_and_grad_nll
+        theta_init = model.theta[node, :]
 
-        print(self.theta.shape)
+        likelihoods = np.zeros((max_iter,))
+
+        conditions = None
+        if model.condition is not None:
+            conditions = np.zeros((max_iter,))
+
+        theta_k_2 = np.array(theta_init)
+        theta_k_1 = np.array(theta_init)
+        lambda_k = lambda_p
+
+        converged = False
+
+        epsilon = sys.float_info.epsilon
+
+        z = np.zeros(np.size(theta_init))
+        f_z = 0
+
+        for k in range(1, max_iter + 1):
+            if (accelerated):
+                w_k = k / (k + 3)
+                y_k = theta_k_1 + w_k * (theta_k_1 - theta_k_2)
+            else:
+                y_k = theta_k_1
+            f_y_k, grad_y_k = f_and_grad_f(node, data, y_k)
+
+            sw = False
+            for _ in range(max_line_search_iter):
+                z = QPGM.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha, qtp_c=qtp_c)
+                f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * np.sum((z - y_k) ** 2)
+                f_z = f(node, data, z)  # NLL at current step.
+                if f_z < f_tilde or np.isclose(f_z, f_tilde, rtol=1e-4):
+                    sw = True
+                    break
+                else:
+                    lambda_k = lambda_k * beta
+            if sw:
+                theta_k_2 = theta_k_1
+                theta_k_1 = z
+
+                likelihoods[k - 1] = f_z
+
+                if model.condition is not None:
+                    conditions[k - 1] = model.condition(node, z, data)
+                    if (not conditions[k - 1]):
+                        print('FALSE!')
+                    if (not conditions[k - 1] and model.break_fit_if_condition_broken == True):
+                        break
+
+                # if (k > 3 and (np.abs(f_z - likelihoods[k - 2]) < abs_tol or
+                #               (np.abs(f_z - likelihoods[k - 2]) / min(np.abs(f_z),
+                #                                                       np.abs(likelihoods[k - 2]))) < rel_tol)):
+                #    converged = True
+                #    break
+            else:
+                break
+        return theta_k_1, likelihoods, conditions, converged
+
+    @staticmethod
+    def prox_operator(x, threshold, qtp_c=1e4):
+        ret_vector = np.zeros((len(x), ))
+        ret_vector[:-1] = Model.prox_operator(x[:-1], threshold)
+
+        # We have the constraint that theta_ss = x[-1] should remain negative, below a threshold -1/qtp_c.
+        # So, we need to find the minimum of (theta_ss - x[-1]) ** 2 subject to theta_ss <= -1/qtp_c.
+
+        ret_vector[-1] = x[-1] - max(0, x[-1] + 1/qtp_c)
+        return ret_vector
+
+    def fit(self, **prox_grad_params):
+        nr_nodes = prox_grad_params['data'].shape[1]
+
         self.theta = np.hstack((self.theta, np.reshape(self.theta_quad, (nr_nodes, 1))))
+        model_params = [self.theta, self.theta_quad]
+
+        ordered_results = [()] * nr_nodes
 
         with Pool(processes=4) as pool:
-            return pool.starmap(prox_grad, Model.provide_args(nr_nodes, tail_args))
+            for result in tqdm(pool.imap_unordered(QPGM.call_prox_grad_wrapper,
+                                                   iter(((model_params, prox_grad_params, x) for x in range(nr_nodes))),
+                                                   chunksize=1), total=nr_nodes):
+                ordered_results[result[0]] = result[1]
+        return ordered_results
 
-if __name__ == '__main__':
-    data = np.load('Samples/QPGM_test/samples.npy')
-    alpha = 0.1
-    qpgm = QPGM(theta=np.zeros((10, 10)), theta_quad=-0.5 * np.ones((10, )))
-    qpgm.theta = np.hstack((qpgm.theta, np.reshape(qpgm.theta_quad, (10, 1))))
-    prox_grad(0, qpgm, data, alpha)

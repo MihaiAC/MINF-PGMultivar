@@ -2,7 +2,6 @@ import numpy as np
 from multiprocessing import Pool
 from scipy.special import gammaln
 from mpgm.mpgm.model import Model
-from mpgm.mpgm.solvers import prox_grad
 
 
 class SPGM(Model):

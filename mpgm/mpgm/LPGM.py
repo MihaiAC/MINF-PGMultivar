@@ -2,7 +2,6 @@ import numpy as np
 from math import floor
 from multiprocessing import Pool
 from mpgm.mpgm.model import Model
-from mpgm.mpgm.solvers import prox_grad
 
 class LPGM(Model):
     def __init__(self, lpgm_m, lpgm_B, lpgm_beta, nr_alphas, seeds):

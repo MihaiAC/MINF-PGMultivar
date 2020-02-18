@@ -26,12 +26,12 @@ def calculate_tpr_fpr(theta_orig, theta_fit):
     print((TP + TN) / (TP + FP + TN + FN))
     return TPR, FPR
 
-samples = np.load('Samples/lattice_test/samples.npy')
-with open('Samples/lattice_test/TPGM_fit_test/likelihoods.pkl', 'rb') as f:
+samples = np.load('Samples/QPGM_test/samples.npy')
+with open('Samples/QPGM_test/QPGM_fit_test/likelihoods.pkl', 'rb') as f:
     likelihoods = pkl.load(f)
 
-theta_orig = np.load('Samples/lattice_test/generator_model_theta.npy')
-theta_fit = np.load('Samples/lattice_test/TPGM_fit_test/fit_model_theta.npy')
+theta_orig = np.load('Samples/QPGM_test/generator_model_theta.npy')
+theta_fit = np.load('Samples/QPGM_test/QPGM_fit_test/fit_model_theta.npy')
 
 print(theta_orig)
 print(theta_fit)
