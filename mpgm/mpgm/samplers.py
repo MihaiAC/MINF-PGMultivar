@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 import os
+from mpgm.mpgm.weight_assigners import assign_weights_bimodal_distr
 from mpgm.mpgm.TPGM import TPGM
 from mpgm.mpgm.QPGM import QPGM
 from mpgm.mpgm.SPGM import SPGM
@@ -25,8 +26,11 @@ class Sampler():
         self.folder_path = 'Samples/' + samples_name
 
         self.graph_generator = None
-        self.graph_generator_kw_params = None
+        self.graph_generator_params = None
         self.nr_variables = None
+
+        self.weight_assigner = None
+        self.weight_assigner_params = None
 
         self.generator_model = None
         self.generator_model_params = None
@@ -38,6 +42,10 @@ class Sampler():
         self.graph_generator = graph_generator
         self.graph_generator_params = graph_generator_params
         self.nr_variables = nr_variables
+
+    def set_weight_assigner(self, weight_assigner, **weight_assigner_params):
+        self.weight_assigner = weight_assigner
+        self.weight_assigner_params = weight_assigner_params
 
     def set_generator_model(self, generator_model, **generator_model_params):
         self.generator_model = generator_model
@@ -61,6 +69,7 @@ class Sampler():
 
         folder_path = self.folder_path + '/'
         generator_model_theta = self.graph_generator(self.nr_variables, **self.graph_generator_params)
+        self.weight_assigner(generator_model_theta, **self.weight_assigner_params)
         model = self.generator_model(theta=generator_model_theta, **self.generator_model_params)
         generated_samples = model.__getattribute__(self.sampling_method_name)(**self.sampling_method_params)
 
@@ -68,6 +77,10 @@ class Sampler():
         with open(folder_path + 'graph_generator_params.pkl', 'wb') as f:
             pickle.dump(self.graph_generator.__name__, f)
             pickle.dump(self.graph_generator_params, f)
+
+        with open(folder_path + 'weight_assigner_params.pkl', 'wb') as f:
+            pickle.dump(self.weight_assigner.__name__, f)
+            pickle.dump(self.weight_assigner_params, f)
 
         with open(folder_path + 'generator_model_params.pkl', 'wb') as f:
             pickle.dump(self.generator_model.__name__, f)
@@ -83,8 +96,9 @@ class Sampler():
 
 def generate_TPGM_samples1():
     sampler = Sampler(samples_name='TPGM_test', random_seed=145)
-    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=10, std=0.03, pos_mean=0.04, neg_mean=-0.04,
-                                neg_percentage=0.5)
+    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=10)
+    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.04, pos_mean=-0.04,
+                                neg_threshold=0.05, std=0.03)
     sampler.set_generator_model(TPGM, R=10)
     sampler.set_sampling_method('generate_samples_gibbs', init=np.random.randint(0, 3, (sampler.nr_variables, )) ,
                                 nr_samples=60, burn_in=5000, thinning_nr=1000)

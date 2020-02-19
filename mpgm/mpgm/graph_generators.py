@@ -1,10 +1,10 @@
 import networkx as nx
 import numpy as np
-from abc import ABC
 
 # Every graph generator must have nr_variables as first argument, other arguments must be keyword arguments.
-def generate_scale_free_graph(nr_variables, neg_percentage=0.5, pos_mean=0.04, neg_mean=-0.04, std=0.03, alpha=0.1,
-                              beta=0.8, gamma=0.1):
+# Every method must return a square, symmetric numpy array, having entry (i,j) nonzero if and only if the graph
+# has an edge from node i to node j.
+def generate_scale_free_graph(nr_variables, alpha=0.1, beta=0.8, gamma=0.1):
     # alpha: add new node + edge to existing node
     # beta: add new edge between existing node
     # gamma: add new node + edge from existing node
@@ -20,18 +20,9 @@ def generate_scale_free_graph(nr_variables, neg_percentage=0.5, pos_mean=0.04, n
     # Remove multiedges (convert to a simple undirected graph).
     G = nx.Graph(G)
 
-    for u, v in list(G.edges()):
-        uniform_rv = np.random.uniform(0, 1, 1)[0]
-        weight = 0
-        if uniform_rv < neg_percentage:
-            weight = np.random.normal(neg_mean, std)
-        else:
-            weight = np.random.normal(pos_mean, std)
-        G[u][v]['weight'] = weight
-
     return nx.to_numpy_array(G)
 
-def generate_lattice_graph(nr_variables, lattice_edge_weight=0.04, sparsity_level=0):
+def generate_lattice_graph(nr_variables, sparsity_level=0):
 
     # Get all divisors of nr_variables.
     divisors = []
@@ -59,14 +50,33 @@ def generate_lattice_graph(nr_variables, lattice_edge_weight=0.04, sparsity_leve
     G = nx.grid_2d_graph(m, n)
 
     arr = nx.to_numpy_array(G)
-    arr = arr * lattice_edge_weight
 
     return arr
 
+def generate_hub_graph(nr_variables, nr_hubs=3):
+    assert nr_variables >= nr_hubs, 'There cannot be more hubs than nodes.'
+
+    graph = np.zeros((nr_variables, nr_variables))
+
+    # Select which nodes will become the hubs.
+    hubs = np.random.choice(range(nr_variables), nr_hubs, replace=False)
+
+    # Construct the edges of the graph.
+    for node in range(nr_variables):
+        if node in hubs:
+            continue
+        assigned_hub = np.random.choice(hubs, 1, replace=True)[0]
+        graph[node][assigned_hub] = 1
+        graph[assigned_hub][node] = 1
+
+    return graph
+
+def generate_random_nm_graph(nr_variables, nr_edges=0):
+    G = nx.gnm_random_graph(nr_variables, nr_edges, seed=np.random)
+    G = nx.Graph(G)
+    return nx.to_numpy_array(G)
+
 if __name__ == '__main__':
-    G = nx.grid_2d_graph(2, 5)
-    for u, v in list(G.edges()):
-        print(str(u) + ' ' + str(v))
-    arr = nx.to_numpy_array(G)
-    print(arr.shape)
+    print(generate_random_nm_graph(10, 3))
+
 
