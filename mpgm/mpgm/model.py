@@ -1,9 +1,13 @@
 import numpy as np
 import sys
+from tqdm import trange
 
-
+# All model subclasses that permit sampling, must have a parameter named theta.
 class Model():
     def __init__(self, *params):
+        pass
+
+    def generate_node_sample(self, node, nodes_values):
         pass
 
     def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
@@ -149,3 +153,31 @@ class Model():
 
         model = cls(*packed_params[0])
         return packed_params[2], cls.fit_prox_grad(packed_params[2], model, *packed_params[1])
+
+    def generate_samples_gibbs(self, init, nr_samples=50, burn_in=700, thinning_nr=100):
+        """
+        Gibbs sampler for this implementation of the TPGM distribution.
+
+        :param model: model to draw samples from, must implement "generate_sample_cond_prob(node, data)"
+        :param init: (N, ) np array = starting value for the sampling process;
+        :param nr_samples: number of samples we want to generate.
+        :param burn_in: number of initial samples to be discarded.
+        :param thinning_nr: we select every thinning_nr samples after the burn-in period;
+
+        :return: (nr_samples X N) matrix containing one sample per row.
+        """
+        nr_variables = len(init)
+        samples = np.zeros((nr_samples, nr_variables))
+        nodes_values = np.array(init)
+
+        for sample_nr in trange(burn_in + (nr_samples - 1) * thinning_nr + 1):
+            # Generate one sample.
+            for node in range(nr_variables):
+                node_sample = self.generate_node_sample(node, nodes_values)
+                nodes_values[node] = node_sample
+
+            # Check if we should keep this sample.
+            if sample_nr >= burn_in and (sample_nr - burn_in) % thinning_nr == 0:
+                samples[(sample_nr - burn_in) // thinning_nr, :] = nodes_values
+
+        return samples

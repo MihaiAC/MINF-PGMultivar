@@ -1,11 +1,14 @@
 import networkx as nx
 import numpy as np
+from abc import ABC
 
-
-def generate_scale_free_graph(nr_variables, weak_pos_mean, weak_neg_mean, weak_std, alpha, beta, gamma):
+# Every graph generator must have nr_variables as first argument, other arguments must be keyword arguments.
+def generate_scale_free_graph(nr_variables, neg_percentage=0.5, pos_mean=0.04, neg_mean=-0.04, std=0.03, alpha=0.1,
+                              beta=0.8, gamma=0.1):
     # alpha: add new node + edge to existing node
     # beta: add new edge between existing node
     # gamma: add new node + edge from existing node
+    assert np.isclose(alpha + beta + gamma, 1), "alpha + beta + gamma must be equal to 1"
 
     G = nx.scale_free_graph(nr_variables, alpha, beta, gamma, seed=np.random)
 
@@ -20,15 +23,15 @@ def generate_scale_free_graph(nr_variables, weak_pos_mean, weak_neg_mean, weak_s
     for u, v in list(G.edges()):
         uniform_rv = np.random.uniform(0, 1, 1)[0]
         weight = 0
-        if uniform_rv < 0.5:
-            weight = np.random.normal(weak_neg_mean, weak_std)
+        if uniform_rv < neg_percentage:
+            weight = np.random.normal(neg_mean, std)
         else:
-            weight = np.random.normal(weak_pos_mean, weak_std)
+            weight = np.random.normal(pos_mean, std)
         G[u][v]['weight'] = weight
 
     return nx.to_numpy_array(G)
 
-def generate_lattice_graph(nr_variables, lattice_edge_weight, sparsity_level):
+def generate_lattice_graph(nr_variables, lattice_edge_weight=0.04, sparsity_level=0):
 
     # Get all divisors of nr_variables.
     divisors = []
