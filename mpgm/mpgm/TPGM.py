@@ -69,7 +69,6 @@ class TPGM(Model):
             dot_product = np.dot(self.theta[node, :], data) - self.theta[node, node] * data[node] + self.theta[node, node]
 
         if partition_reduced is None:
-
             partition_exponents = np.zeros((self.R+1, ))
             for kk in range(self.R+1):
                 partition_exponents[kk] = dot_product * kk - gammaln(kk+1)
@@ -79,7 +78,6 @@ class TPGM(Model):
             for kk in range(self.R+1):
                 partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
 
-        min_exp = dot_product * node_value - gammaln(node_value+1)
         cond_prob = np.exp(dot_product * node_value - gammaln(node_value+1) - partition_max_exp)/partition_reduced
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
@@ -107,7 +105,7 @@ class TPGM(Model):
         log_partition += np.log(sum_of_rest)
 
         # TODO: remove debug statement.
-        ll = dot_product * datapoint[node] - gammaln(datapoint[node] + 1) - log_partition
+        ll = dot_product * datapoint[node] - gammaln(datapoint[node]+1) - log_partition
         return ll, log_partition
 
     def calculate_grad_ll_datapoint(self, node, datapoint, theta_curr, log_partition):
@@ -143,6 +141,10 @@ class TPGM(Model):
             if ii != node:
                 grad[ii] = datapoint[ii] * grad[node]
 
+        # Test what happens if we keep the node parameters to 0.
+        # TODO: remove this after testing.
+        grad[node] = 0
+
         return grad
 
     def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
@@ -169,3 +171,6 @@ class TPGM(Model):
         #with Pool(processes=4) as pool:
         #    args = list(Model.provide_args(nr_nodes, tail_args))
         #    return pool.starmap(prox_grad, args)
+
+if __name__=='__main__':
+    pass

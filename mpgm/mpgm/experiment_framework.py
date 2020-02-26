@@ -133,9 +133,9 @@ class LPGM_Experiment(Experiment):
             self.model_to_fit = LPGM(lpgm_m, lpgm_B, lpgm_beta, nr_alphas, seeds)'''
 
 
-def run_test_tpgm_experiment():
-    exp = Experiment('lattice_test', 'TPGM', 'TPGM_fit_test', alpha=0.1, theta_init=np.zeros((10, 10)), random_seed=1337,
-                     prox_grad_accelerated=False)
+def run_test_tpgm_experiment(samples_name, experiment_name):
+    exp = TPGM_Experiment(experiment_name, samples_name, random_seed=1337, R=10, alpha=0.1, accelerated=True,
+                          max_line_search_iter=400, line_search_rel_tol=1e-3)
     exp.run_experiment()
 
 def run_test_qpgm_experiment():
@@ -146,5 +146,32 @@ def run_test_lpgm_experiment():
     exp = Experiment('test', 'LPGM', 'LPGM_fit_test', lpgm_m=24)
     exp.run_experiment()
 
+def tpgm_node_cond_prob_sum_check():
+    exp = TPGM_Experiment('TPGM_fit_test', 'TPGM_burn_in_200_thinning_nr_6400', random_seed=1337, R=10, alpha=0.8, accelerated=True,
+                          max_line_search_iter=200, line_search_rel_tol=1e-1)
+
+    sample = exp.data[0, :]
+    print(sample)
+    node = 0
+    R = 10
+
+    sum_cond_prob = 0
+    for node_value in range(R+1):
+        sum_cond_prob += exp.model_to_fit.node_cond_prob(node, node_value, sample, None, None, None)[0]
+
+    print(sum_cond_prob)
+    # Sanity check successful.
+
+def run_test_tpgm_vary_alpha():
+    alphas = np.linspace(1e-4, 1, 50)
+    samples_name = 'TPGM_test'
+
+    for idx, alpha in enumerate(alphas):
+        experiment_name = 'TPGM_fit_test_alpha_' + str(idx)
+        exp = TPGM_Experiment(experiment_name, samples_name, random_seed=1337, R=10, alpha=alpha,
+                              accelerated=True, max_line_search_iter=400, line_search_rel_tol=1e-3)
+        exp.run_experiment()
+
+
 if __name__ == '__main__':
-    run_test_qpgm_experiment()
+    run_test_tpgm_experiment('TPGM_test_moderate_params_sparse', 'TPGM_fit_test')

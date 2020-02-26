@@ -1,5 +1,6 @@
 import numpy as np
 import pickle as pkl
+from mpgm.mpgm.TPGM import TPGM
 
 def calculate_tpr_fpr(theta_orig, theta_fit):
     nr_variables = theta_orig.shape[0]
@@ -26,12 +27,15 @@ def calculate_tpr_fpr(theta_orig, theta_fit):
     print((TP + TN) / (TP + FP + TN + FN))
     return TPR, FPR
 
-samples = np.load('Samples/QPGM_test/samples.npy')
-with open('Samples/QPGM_test/QPGM_fit_test/likelihoods.pkl', 'rb') as f:
-    likelihoods = pkl.load(f)
+samples_loc = 'TPGM_test'
+exp_name = 'TPGM_fit_test'
+samples = np.load('Samples/' + samples_loc + '/samples.npy')
+theta_orig = np.load('Samples/' + samples_loc + '/generator_model_theta.npy')
+theta_fit = np.load('Samples/' + samples_loc + '/' + exp_name + '/fit_model_theta.npy')
 
-theta_orig = np.load('Samples/QPGM_test/generator_model_theta.npy')
-theta_fit = np.load('Samples/QPGM_test/QPGM_fit_test/fit_model_theta.npy')
+model = TPGM(theta_orig[0, :], R=10)
+print(model.calculate_nll(0, samples, theta_orig[0, :]))
+
 
 print(theta_orig)
 print(theta_fit)

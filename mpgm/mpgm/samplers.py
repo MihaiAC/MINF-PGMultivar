@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import pickle
 import os
 from mpgm.mpgm.weight_assigners import assign_weights_bimodal_distr
@@ -70,8 +71,8 @@ class Sampler():
         folder_path = self.folder_path + '/'
         generator_model_theta = self.graph_generator(self.nr_variables, **self.graph_generator_params)
         self.weight_assigner(generator_model_theta, **self.weight_assigner_params)
-        model = self.generator_model(theta=generator_model_theta, **self.generator_model_params)
-        generated_samples = model.__getattribute__(self.sampling_method_name)(**self.sampling_method_params)
+        self.model = self.generator_model(theta=generator_model_theta, **self.generator_model_params)
+        generated_samples = self.model.__getattribute__(self.sampling_method_name)(**self.sampling_method_params)
 
         # Save the parameters corresponding to the sample we've generated:
         with open(folder_path + 'graph_generator_params.pkl', 'wb') as f:
@@ -93,18 +94,60 @@ class Sampler():
         np.save(folder_path + 'generator_model_theta.npy', generator_model_theta)
         np.save(folder_path + 'samples.npy', generated_samples)
 
+        return generated_samples
 
-def generate_TPGM_samples1():
-    sampler = Sampler(samples_name='TPGM_test', random_seed=145)
-    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=10)
-    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.04, pos_mean=-0.04,
-                                neg_threshold=0.05, std=0.03)
+
+def generate_TPGM_samples(samples_name):
+    sampler = Sampler(samples_name=samples_name, random_seed=145)
+    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=5)
+    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.3, pos_mean=0.3,
+                                neg_threshold=0.5, std=0.1)
     sampler.set_generator_model(TPGM, R=10)
-    sampler.set_sampling_method('generate_samples_gibbs', init=np.random.randint(0, 3, (sampler.nr_variables, )) ,
-                                nr_samples=60, burn_in=5000, thinning_nr=1000)
+    sampler.set_sampling_method('generate_samples_gibbs', init=np.random.randint(1, 3, (sampler.nr_variables, )) ,
+                                nr_samples=60, burn_in=1000, thinning_nr=3000)
 
     sampler.generate_samples()
 
+def generate_TPGM_samples_sparser(samples_name):
+    sampler = Sampler(samples_name=samples_name, random_seed=145)
+    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=5, alpha=0.01, beta=0.1, gamma=0.89)
+    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.3, pos_mean=0.3,
+                                neg_threshold=0.5, std=0.1)
+    sampler.set_generator_model(TPGM, R=10)
+    sampler.set_sampling_method('generate_samples_gibbs', init=np.random.randint(1, 3, (sampler.nr_variables, )) ,
+                                nr_samples=60, burn_in=1000, thinning_nr=500)
+
+    sampler.generate_samples()
+
+def generate_TPGM_samples_vary_thinning_nr():
+    thinning_nrs = [1, 10, 50, 100, 200, 400, 800, 1600, 3200, 6400]
+    sampler = Sampler(samples_name='TPGM_burn_in_test', random_seed=145)
+    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=4)
+    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.2, pos_mean=-0.2,
+                                neg_threshold=0.5, std=0.05)
+    sampler.set_generator_model(TPGM, R=10)
+
+    init_sample = np.random.randint(2, 5, (sampler.nr_variables, ))
+
+    thinning_nr_nlls = []
+    for thinning_nr in thinning_nrs:
+        np.random.seed(99)
+        sampler.set_sampling_method('generate_samples_gibbs', init=init_sample, nr_samples=60, burn_in=200,
+                                    thinning_nr = thinning_nr)
+        sampler.folder_path = 'Samples/' + 'TPGM_burn_in_200_thinning_nr_' + str(thinning_nr)
+
+        samples = sampler.generate_samples()
+        sample_nll = sampler.model.calculate_joint_nll(samples)
+        thinning_nr_nlls.append(sample_nll)
+
+    thinning_nr_nlls = np.array(thinning_nr_nlls)
+    thinning_nrs = np.log(np.array(thinning_nrs))
+    fig, ax = plt.subplots(nrows=1, ncols=1)
+    ax.plot(thinning_nrs, thinning_nr_nlls)
+    ax.set_title('Sample NLL vs Log thinning number')
+    ax.set_xlabel('log thinning nr')
+    ax.set_ylabel('sample NLL')
+    fig.savefig('Samples/sample_nll_vs_log_thinning_nr.png')
 
 if __name__ == '__main__':
-    generate_TPGM_samples1()
+    generate_TPGM_samples_sparser('TPGM_test_moderate_params_sparse')

@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import sys
 from tqdm import trange
 
@@ -44,6 +45,15 @@ class Model():
 
         return nll
 
+    def calculate_joint_nll(self, data):
+        nr_nodes = data.shape[1]
+
+        joint_nll = 0
+        for node in range(nr_nodes):
+            joint_nll += self.calculate_nll(node, data, self.theta[node, :])
+
+        return joint_nll
+
     @staticmethod
     def provide_args(nr_nodes, other_args):
         for ii in range(nr_nodes):
@@ -51,7 +61,7 @@ class Model():
         return
 
     @staticmethod
-    def fit_prox_grad(node, model, data, alpha, accelerated=False, max_iter=5000, max_line_search_iter=50,
+    def fit_prox_grad(node, model, data, alpha, accelerated=True, max_iter=5000, max_line_search_iter=50,
                       line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
         """
         Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
@@ -75,11 +85,11 @@ class Model():
         f_and_grad_f = model.calculate_nll_and_grad_nll
         theta_init = model.theta[node, :]
 
-        likelihoods = np.zeros((max_iter,))
+        likelihoods = []
 
         conditions = None
         if model.condition is not None:
-            conditions = np.zeros((max_iter,))
+            conditions = []
 
         theta_k_2 = np.array(theta_init)
         theta_k_1 = np.array(theta_init)
@@ -87,13 +97,14 @@ class Model():
 
         converged = False
 
-        epsilon = sys.float_info.epsilon
+        nr_variables = len(theta_init)
+        parameters_regularization_path = np.array(theta_init).reshape((1, nr_variables))
 
         z = np.zeros(np.size(theta_init))
         f_z = 0
 
         for k in range(1, max_iter + 1):
-            if (accelerated):
+            if accelerated:
                 w_k = k / (k + 3)
                 y_k = theta_k_1 + w_k * (theta_k_1 - theta_k_2)
             else:
@@ -105,7 +116,7 @@ class Model():
                 z = Model.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha)
                 f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * np.sum((z - y_k) ** 2)
                 f_z = f(node, data, z)  # NLL at current step.
-                if f_z < f_tilde or np.isclose(f_z, f_tilde, rtol=1e-4):
+                if f_z < f_tilde or np.isclose(f_z, f_tilde, rtol=line_search_rel_tol):
                     sw = True
                     break
                 else:
@@ -114,23 +125,42 @@ class Model():
                 theta_k_2 = theta_k_1
                 theta_k_1 = z
 
-                likelihoods[k-1] = f_z
+                parameters_regularization_path = np.concatenate((parameters_regularization_path, theta_k_1.reshape((1, nr_variables))), axis=0)
+
+                likelihoods.append(f_z)
 
                 if model.condition is not None:
-                    conditions[k - 1] = model.condition(node, z, data)
+                    conditions.append(model.condition(node, z, data))
                     if (not conditions[k-1]):
                         print('FALSE!')
                     if (not conditions[k-1] and model.break_fit_if_condition_broken == True):
                         break
 
-                # if (k > 3 and (np.abs(f_z - likelihoods[k - 2]) < abs_tol or
-                #               (np.abs(f_z - likelihoods[k - 2]) / min(np.abs(f_z),
-                #                                                       np.abs(likelihoods[k - 2]))) < rel_tol)):
-                #    converged = True
+                # Convergence criterion for parameters.
+                #converged_params = (theta_k_1 - theta_k_2) ** 2 <= (rel_tol ** 2) * (theta_k_1 ** 2)
+                #if all(converged_params):
+                #    print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
                 #    break
+                # Convergence criterion for likelihoods.
+                if (k > 3 and (f_z > likelihoods[k-2] or np.isclose(f_z, likelihoods[k-2], rel_tol, abs_tol))):
+                    converged = True
+                    print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                    break
             else:
+                converged = False
+                print('\nProx grad failed to converge for node ' + str(node))
                 break
-        return theta_k_1, likelihoods, conditions, converged
+
+        fig, ax = plt.subplots(nrows=1, ncols=1)
+        for ii in range(nr_variables):
+            ax.plot(np.array(range(parameters_regularization_path.shape[0])), parameters_regularization_path[:, ii], label='param_' + str(node) + str(ii))
+        ax.set_title('Regularization path for node ' + str(node))
+        ax.set_xlabel('Iteration number')
+        ax.set_ylabel('Parameter value')
+        ax.legend()
+        fig.savefig('regularization_path_node_' + str(node) + '.png')
+
+        return theta_k_1, np.array(likelihoods), conditions, converged
 
     @staticmethod
     def prox_operator(x, threshold):
@@ -148,11 +178,11 @@ class Model():
     @classmethod
     def call_prox_grad_wrapper(cls, packed_params):
         # model_params = packed_params[0]
-        # prox_grad_params = packed_params[1]
+        # prox_grad_params = packed_params[1], dictionary.
         # node = packed_params[2]
 
         model = cls(*packed_params[0])
-        return packed_params[2], cls.fit_prox_grad(packed_params[2], model, *packed_params[1])
+        return packed_params[2], cls.fit_prox_grad(packed_params[2], model, **packed_params[1])
 
     def generate_samples_gibbs(self, init, nr_samples=50, burn_in=700, thinning_nr=100):
         """
