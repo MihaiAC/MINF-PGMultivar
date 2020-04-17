@@ -11,7 +11,6 @@ class QPGM(Model):
 
     :param theta: N x N matrix; theta[s][t] = weight of the edge between nodes (dimensions) s and t.
     :param theta_quad: 1 x N matrix; theta_quad[ss] = parameter of the quadratic term;
-    :param data: Data to fit the model with.
     """
 
     def __init__(self, theta=None, theta_quad=None):
@@ -27,12 +26,14 @@ class QPGM(Model):
 
         current_node_value = 1
         while uu > cdf:
-            cdf += self.node_cond_prob(node, current_node_value, nodes_values, dot_product, partition_max_exp, partition_reduced)[0]
+            cdf += self.node_cond_prob(node, current_node_value, nodes_values, dot_product, partition_max_exp,
+                                       partition_reduced)[0]
             current_node_value += 1
 
         return current_node_value - 1
 
-    def node_cond_prob(self, node, current_node_value, nodes_values, dot_product=None, partition_max_exp=None, partition_reduced=None):
+    def node_cond_prob(self, node, current_node_value, nodes_values, dot_product=None, partition_max_exp=None,
+                       partition_reduced=None):
         """
         Calculates the probability of node having the provided value given the other nodes.
 
@@ -117,7 +118,8 @@ class QPGM(Model):
 
     @staticmethod
     def fit_prox_grad(node, model, data, alpha, qtp_c=1e4, accelerated=False, max_iter=5000, max_line_search_iter=50,
-                      line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
+                      line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6,
+                      early_stop_criterion='weight'):
         """
             Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
                 package.
@@ -125,6 +127,8 @@ class QPGM(Model):
                 condition function to be evaluated after each iteration (necessary for QPGM, SPGM) as per the Model "interface".
             :param data: Data used to fit the model.
             :param alpha: L1 regularization parameter.
+            :param qtp_c: Parameters which would become positive get clipped to -1/qtp_c instead in order to preserve
+                the upper bound used for fitting the model.
             :param node: The node we're doing regression on.
             :param max_iter: Maximum iterations allowed for the algorithm.
             :param max_line_search_iter: Maximum iterations allowed for the line search performed at every iteration step.
@@ -132,6 +136,8 @@ class QPGM(Model):
             :param beta: Line search parameter.
             :param rel_tol: Relative tolerance value for early stopping.
             :param abs_tol: Absolute tolerance value for early stopping. Should be 1e-3 * rel_tol.
+            :param early_stop_criterion: If equal to 'weight', training stops when the weight values have converged.
+                If equal to 'likelihood', training stops when the value of the NLL has converged.
             :return: (parameters, likelihood_values, converged) - tuple containing parameters and the NLL value for each
                 iteration;
             """
@@ -158,7 +164,7 @@ class QPGM(Model):
         f_z = 0
 
         for k in range(1, max_iter + 1):
-            if (accelerated):
+            if accelerated:
                 w_k = k / (k + 3)
                 y_k = theta_k_1 + w_k * (theta_k_1 - theta_k_2)
             else:
@@ -166,6 +172,8 @@ class QPGM(Model):
             f_y_k, grad_y_k = f_and_grad_f(node, data, y_k)
 
             sw = False
+            # TODO: prox_operator | thresholding should be outside of the line search (I'm pretty sure, can compare).
+            # Does it make that much of a difference, though?
             for _ in range(max_line_search_iter):
                 z = QPGM.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha, qtp_c=qtp_c)
                 f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * np.sum((z - y_k) ** 2)
@@ -188,12 +196,23 @@ class QPGM(Model):
                     if (not conditions[k - 1] and model.break_fit_if_condition_broken == True):
                         break
 
-                # if (k > 3 and (np.abs(f_z - likelihoods[k - 2]) < abs_tol or
-                #               (np.abs(f_z - likelihoods[k - 2]) / min(np.abs(f_z),
-                #                                                       np.abs(likelihoods[k - 2]))) < rel_tol)):
-                #    converged = True
-                #    break
+                # Convergence criterion for parameters (weights).
+                if early_stop_criterion == 'weight':
+                    converged_params = (theta_k_1 - theta_k_2) ** 2 <= (rel_tol ** 2) * (theta_k_1 ** 2)
+                    if all(converged_params):
+                        converged = True
+                        print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                        break
+                elif early_stop_criterion == 'likelihood':
+                    # Convergence criterion for likelihoods.
+                    if (k > 3 and (
+                            f_z > likelihoods[k - 2] or np.isclose(f_z, likelihoods[k - 2], rel_tol, abs_tol))):
+                        converged = True
+                        print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                        break
             else:
+                converged = False
+                print('\nProx grad failed to converge for node ' + str(node))
                 break
         return theta_k_1, likelihoods, conditions, converged
 

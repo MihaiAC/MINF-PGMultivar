@@ -62,7 +62,8 @@ class Model():
 
     @staticmethod
     def fit_prox_grad(node, model, data, alpha, accelerated=True, max_iter=5000, max_line_search_iter=50,
-                      line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6):
+                      line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6,
+                      early_stop_criterion='weight'):
         """
         Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
             package.
@@ -77,6 +78,8 @@ class Model():
         :param beta: Line search parameter.
         :param rel_tol: Relative tolerance value for early stopping.
         :param abs_tol: Absolute tolerance value for early stopping. Should be 1e-3 * rel_tol.
+        :param early_stop_criterion: If equal to 'weight', training stops when the weight values have converged.
+            If equal to 'likelihood', training stops when the value of the NLL has converged.
         :return: (parameters, likelihood_values, converged) - tuple containing parameters and the NLL value for each
             iteration;
         """
@@ -87,7 +90,7 @@ class Model():
 
         likelihoods = []
 
-        conditions = None
+        # Debug code to check if conditions that must be met are respected while training.
         if model.condition is not None:
             conditions = []
 
@@ -98,7 +101,7 @@ class Model():
         converged = False
 
         nr_variables = len(theta_init)
-        parameters_regularization_path = np.array(theta_init).reshape((1, nr_variables))
+        #parameters_regularization_path = np.array(theta_init).reshape((1, nr_variables))
 
         z = np.zeros(np.size(theta_init))
         f_z = 0
@@ -125,10 +128,11 @@ class Model():
                 theta_k_2 = theta_k_1
                 theta_k_1 = z
 
-                parameters_regularization_path = np.concatenate((parameters_regularization_path, theta_k_1.reshape((1, nr_variables))), axis=0)
+                #parameters_regularization_path = np.concatenate((parameters_regularization_path, theta_k_1.reshape((1, nr_variables))), axis=0)
 
                 likelihoods.append(f_z)
 
+                # Debug code for checking conditions.
                 if model.condition is not None:
                     conditions.append(model.condition(node, z, data))
                     if (not conditions[k-1]):
@@ -136,29 +140,32 @@ class Model():
                     if (not conditions[k-1] and model.break_fit_if_condition_broken == True):
                         break
 
-                # Convergence criterion for parameters.
-                #converged_params = (theta_k_1 - theta_k_2) ** 2 <= (rel_tol ** 2) * (theta_k_1 ** 2)
-                #if all(converged_params):
-                #    print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
-                #    break
-                # Convergence criterion for likelihoods.
-                if (k > 3 and (f_z > likelihoods[k-2] or np.isclose(f_z, likelihoods[k-2], rel_tol, abs_tol))):
-                    converged = True
-                    print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
-                    break
+                # Convergence criterion for parameters (weights).
+                if early_stop_criterion == 'weight':
+                    converged_params = (theta_k_1 - theta_k_2) ** 2 <= (rel_tol ** 2) * (theta_k_1 ** 2)
+                    if all(converged_params):
+                        converged = True
+                        print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                        break
+                elif early_stop_criterion == 'likelihood':
+                    # Convergence criterion for likelihoods.
+                    if (k > 3 and (f_z > likelihoods[k-2] or np.isclose(f_z, likelihoods[k-2], rel_tol, abs_tol))):
+                        converged = True
+                        print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                        break
             else:
                 converged = False
                 print('\nProx grad failed to converge for node ' + str(node))
                 break
 
-        fig, ax = plt.subplots(nrows=1, ncols=1)
-        for ii in range(nr_variables):
-            ax.plot(np.array(range(parameters_regularization_path.shape[0])), parameters_regularization_path[:, ii], label='param_' + str(node) + str(ii))
-        ax.set_title('Regularization path for node ' + str(node))
-        ax.set_xlabel('Iteration number')
-        ax.set_ylabel('Parameter value')
-        ax.legend()
-        fig.savefig('regularization_path_node_' + str(node) + '.png')
+        #fig, ax = plt.subplots(nrows=1, ncols=1)
+        #for ii in range(nr_variables):
+        #    ax.plot(np.array(range(parameters_regularization_path.shape[0])), parameters_regularization_path[:, ii], label='param_' + str(node) + str(ii))
+        #ax.set_title('Regularization path for node ' + str(node))
+        #ax.set_xlabel('Iteration number')
+        #ax.set_ylabel('Parameter value')
+        #ax.legend()
+        #fig.savefig('regularization_path_node_' + str(node) + '.png')
 
         return theta_k_1, np.array(likelihoods), conditions, converged
 

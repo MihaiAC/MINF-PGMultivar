@@ -8,6 +8,8 @@ from mpgm.mpgm.QPGM import QPGM
 from mpgm.mpgm.SPGM import SPGM
 from mpgm.mpgm.graph_generators import generate_scale_free_graph
 from mpgm.mpgm.graph_generators import generate_lattice_graph
+from mpgm.mpgm.graph_generators import generate_hub_graph
+from mpgm.mpgm.graph_generators import generate_random_nm_graph
 from pathlib import Path
 
 class Sampler():
@@ -97,27 +99,47 @@ class Sampler():
         return generated_samples
 
 
-def generate_TPGM_samples(samples_name):
-    sampler = Sampler(samples_name=samples_name, random_seed=145)
-    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=5)
-    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.3, pos_mean=0.3,
-                                neg_threshold=0.5, std=0.1)
-    sampler.set_generator_model(TPGM, R=10)
-    sampler.set_sampling_method('generate_samples_gibbs', init=np.random.randint(1, 3, (sampler.nr_variables, )) ,
-                                nr_samples=60, burn_in=1000, thinning_nr=3000)
+def generate_model_samples(**kwargs):
+    sampler = Sampler(samples_name=kwargs["samples_name"], random_seed=kwargs['random_seed'])
 
+    graph_generator_name = kwargs["graph_generator"]
+    if graph_generator_name == "scale_free":
+        sampler.set_generator_model(generate_scale_free_graph, nr_variables=kwargs["nr_variables"],
+                                    alpha=kwargs["alpha"], beta=kwargs["beta"], gamma=kwargs["gamma"])
+    elif graph_generator_name == "lattice":
+        sampler.set_generator_model(generate_lattice_graph, nr_variables=kwargs["nr_variables"],
+                                    sparsity_level=kwargs["sparsity_level"])
+    elif graph_generator_name == "hub":
+        sampler.set_generator_model(generate_hub_graph, nr_variables=kwargs["nr_variables"], nr_hubs=kwargs["nr_hubs"])
+    elif graph_generator_name == "random":
+        sampler.set_generator_model(generate_random_nm_graph, nr_variables=kwargs["nr_variables"],
+                                    nr_edges=kwargs["nr_edges"])
+    else:
+        raise ValueError("No graph generator " + str(graph_generator_name) + " found.")
+
+    weight_assigner_name = kwargs["weight_assigner"]
+    if weight_assigner_name == 'bimodal':
+        sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=kwargs["neg-mean"],
+                                    pos_mean=kwargs["pos_mean"], std=kwargs["std"], neg_treshold=kwargs["neg_threshold"])
+    else:
+        raise ValueError("No weight assigner " + str(weight_assigner_name) + " found.")
+
+    model_name = kwargs["model"]
+    if model_name == "TPGM":
+        sampler.set_generator_model(TPGM, R=kwargs["R"])
+    elif model_name == "QPGM":
+        sampler.set_generator_model(QPGM, theta_quad=kwargs["theta_quad"])
+    elif model_name == "SPGM":
+        sampler.set_generator_model(SPGM, R=kwargs["R"], R0=kwargs["R0"])
+    elif model_name == "LPGM":
+        raise ValueError("Cannot sample from an LPGM model.")
+    else:
+        raise ValueError("Model to sample from " + str(model_name) + " not found.")
+
+    sampler.set_sampling_method('generate_samples_gibbs', init=kwargs['init'], nr_samples=kwargs['nr_samples'],
+                                burn_in=kwargs['burn_in'], thinning_nr=kwargs['thinning_nr'])
     sampler.generate_samples()
 
-def generate_TPGM_samples_sparser(samples_name):
-    sampler = Sampler(samples_name=samples_name, random_seed=145)
-    sampler.set_graph_generator(generate_scale_free_graph, nr_variables=5, alpha=0.01, beta=0.1, gamma=0.89)
-    sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=-0.3, pos_mean=0.3,
-                                neg_threshold=0.5, std=0.1)
-    sampler.set_generator_model(TPGM, R=10)
-    sampler.set_sampling_method('generate_samples_gibbs', init=np.random.randint(1, 3, (sampler.nr_variables, )) ,
-                                nr_samples=60, burn_in=1000, thinning_nr=500)
-
-    sampler.generate_samples()
 
 def generate_TPGM_samples_vary_thinning_nr():
     thinning_nrs = [1, 10, 50, 100, 200, 400, 800, 1600, 3200, 6400]
@@ -148,6 +170,3 @@ def generate_TPGM_samples_vary_thinning_nr():
     ax.set_xlabel('log thinning nr')
     ax.set_ylabel('sample NLL')
     fig.savefig('Samples/sample_nll_vs_log_thinning_nr.png')
-
-if __name__ == '__main__':
-    generate_TPGM_samples_sparser('TPGM_test_moderate_params_sparse')

@@ -6,14 +6,14 @@ from mpgm.mpgm.QPGM import QPGM
 from mpgm.mpgm.SPGM import SPGM
 from mpgm.mpgm.LPGM import LPGM
 
-class Experiment:
+class Fit_Wrapper:
     def __init__(self, experiment_name, samples_name, random_seed, **prox_grad_params):
         self.data_file_path = 'Samples/' + samples_name + '/'
         self.experiment_name = experiment_name
         self.model_to_fit = None
         self.data = np.load(self.data_file_path + 'samples.npy')
 
-        self.prox_grad_params = Experiment.generate_model_prox_grad_params_dict(**prox_grad_params)
+        self.prox_grad_params = Fit_Wrapper.generate_model_prox_grad_params_dict(**prox_grad_params)
         self.prox_grad_params['data'] = self.data
 
         if random_seed is not None:
@@ -29,7 +29,7 @@ class Experiment:
 
         self.save_experiment(experiment_folder, fit_data)
 
-        print('Experiment ' + self.experiment_name + ' done!')
+        print('Fit_Wrapper ' + self.experiment_name + ' done!')
 
     def save_experiment(self, experiment_folder, fit_data):
         if isinstance(self.model_to_fit, TPGM) or isinstance(self.model_to_fit, QPGM) or isinstance(self.model_to_fit, SPGM):
@@ -82,9 +82,9 @@ class Experiment:
 
 
 
-class TPGM_Experiment(Experiment):
+class TPGM_FitWrapper(Fit_Wrapper):
     def __init__(self, experiment_name, samples_name, random_seed, R, theta_init=None, **model_prox_grad_params):
-        super(TPGM_Experiment, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
+        super(TPGM_FitWrapper, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
 
         nr_samples, nr_variables = self.data.shape
 
@@ -92,10 +92,10 @@ class TPGM_Experiment(Experiment):
             theta_init = np.zeros((nr_variables, nr_variables))
         self.model_to_fit = TPGM(theta_init, R)
 
-class QPGM_Experiment(Experiment):
+class QPGM_FitWrapper(Fit_Wrapper):
     def __init__(self, experiment_name, samples_name, random_seed, theta_init=None, theta_quad_init=None, qtp_c=1e4,
                  **model_prox_grad_params):
-        super(QPGM_Experiment, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
+        super(QPGM_FitWrapper, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
         self.prox_grad_params['qtp_c'] = qtp_c
 
         nr_samples, nr_variables = self.data.shape
@@ -108,9 +108,9 @@ class QPGM_Experiment(Experiment):
 
         self.model_to_fit = QPGM(theta_init, theta_quad_init)
 
-class SPGM_Experiment(Experiment):
+class SPGM_FitWrapper(Fit_Wrapper):
     def __init__(self, experiment_name, samples_name, random_seed, R, R0, theta_init=None, **model_prox_grad_params):
-        super(SPGM_Experiment, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
+        super(SPGM_FitWrapper, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
 
         nr_samples, nr_variables = self.data.shape
 
@@ -119,7 +119,7 @@ class SPGM_Experiment(Experiment):
 
         self.model_to_fit = SPGM(theta_init, R, R0)
 
-class LPGM_Experiment(Experiment):
+class LPGM_FitWrapper(Fit_Wrapper):
     pass
 '''
                  alpha=None, lpgm_m=None, lpgm_B = 10, lpgm_beta=0.05,
@@ -134,20 +134,20 @@ class LPGM_Experiment(Experiment):
 
 
 def run_test_tpgm_experiment(samples_name, experiment_name):
-    exp = TPGM_Experiment(experiment_name, samples_name, random_seed=1337, R=10, alpha=0.1, accelerated=True,
+    exp = TPGM_FitWrapper(experiment_name, samples_name, random_seed=1337, R=10, alpha=0.2, accelerated=True,
                           max_line_search_iter=400, line_search_rel_tol=1e-3)
     exp.run_experiment()
 
 def run_test_qpgm_experiment():
-    exp = Experiment('QPGM_test', 'QPGM', 'QPGM_fit_test', alpha=0.1, random_seed=123, prox_grad_accelerated=True)
+    exp = Fit_Wrapper('QPGM_test', 'QPGM', 'QPGM_fit_test', alpha=0.1, random_seed=123, prox_grad_accelerated=True)
     exp.run_experiment()
 
 def run_test_lpgm_experiment():
-    exp = Experiment('test', 'LPGM', 'LPGM_fit_test', lpgm_m=24)
+    exp = Fit_Wrapper('test', 'LPGM', 'LPGM_fit_test', lpgm_m=24)
     exp.run_experiment()
 
 def tpgm_node_cond_prob_sum_check():
-    exp = TPGM_Experiment('TPGM_fit_test', 'TPGM_burn_in_200_thinning_nr_6400', random_seed=1337, R=10, alpha=0.8, accelerated=True,
+    exp = TPGM_FitWrapper('TPGM_fit_test', 'TPGM_burn_in_200_thinning_nr_6400', random_seed=1337, R=10, alpha=0.8, accelerated=True,
                           max_line_search_iter=200, line_search_rel_tol=1e-1)
 
     sample = exp.data[0, :]
@@ -168,7 +168,7 @@ def run_test_tpgm_vary_alpha():
 
     for idx, alpha in enumerate(alphas):
         experiment_name = 'TPGM_fit_test_alpha_' + str(idx)
-        exp = TPGM_Experiment(experiment_name, samples_name, random_seed=1337, R=10, alpha=alpha,
+        exp = TPGM_FitWrapper(experiment_name, samples_name, random_seed=1337, R=10, alpha=alpha,
                               accelerated=True, max_line_search_iter=400, line_search_rel_tol=1e-3)
         exp.run_experiment()
 

@@ -22,6 +22,7 @@ class TPGM(Model):
                       N x N array, representing the starting theta values for when we want to fit the model.
         :param R: maximum count value, should be an integer.
         """
+        super().__init__()
         self.R = R
         self.theta = theta
         self.condition = None # Condition to be checked after each iteration of prox grad.
@@ -154,7 +155,7 @@ class TPGM(Model):
         return -ll, -grad_ll
 
     # TODO: Need theta_init, R as initial model parameters.
-    def fit(self, prox_grad_params):
+    def fit(self, **prox_grad_params):
         model_params = [self.theta, self.R]
 
         nr_nodes = prox_grad_params['data'].shape[1]
@@ -167,10 +168,6 @@ class TPGM(Model):
                 ordered_results[result[0]] = result[1]
 
         return ordered_results
-
-        #with Pool(processes=4) as pool:
-        #    args = list(Model.provide_args(nr_nodes, tail_args))
-        #    return pool.starmap(prox_grad, args)
 
 if __name__=='__main__':
     pass
