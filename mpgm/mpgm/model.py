@@ -89,10 +89,7 @@ class Model():
         theta_init = model.theta[node, :]
 
         likelihoods = []
-
-        # Debug code to check if conditions that must be met are respected while training.
-        if model.condition is not None:
-            conditions = []
+        conditions = []
 
         theta_k_2 = np.array(theta_init)
         theta_k_1 = np.array(theta_init)

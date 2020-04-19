@@ -117,7 +117,7 @@ class QPGM(Model):
         return theta_curr[-1] < 0
 
     @staticmethod
-    def fit_prox_grad(node, model, data, alpha, qtp_c=1e4, accelerated=False, max_iter=5000, max_line_search_iter=50,
+    def fit_prox_grad(node, model, data, alpha, qtp_c=1e4, accelerated=True, max_iter=5000, max_line_search_iter=50,
                       line_search_rel_tol=1e-4, lambda_p=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6,
                       early_stop_criterion='weight'):
         """
@@ -148,9 +148,9 @@ class QPGM(Model):
 
         likelihoods = np.zeros((max_iter,))
 
-        conditions = None
+        conditions = []
         if model.condition is not None:
-            conditions = np.zeros((max_iter,))
+            conditions = np.zeros((max_iter, ))
 
         theta_k_2 = np.array(theta_init)
         theta_k_1 = np.array(theta_init)

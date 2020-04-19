@@ -104,23 +104,23 @@ def generate_model_samples(**kwargs):
 
     graph_generator_name = kwargs["graph_generator"]
     if graph_generator_name == "scale_free":
-        sampler.set_generator_model(generate_scale_free_graph, nr_variables=kwargs["nr_variables"],
+        sampler.set_graph_generator(generate_scale_free_graph, nr_variables=kwargs["nr_variables"],
                                     alpha=kwargs["alpha"], beta=kwargs["beta"], gamma=kwargs["gamma"])
     elif graph_generator_name == "lattice":
-        sampler.set_generator_model(generate_lattice_graph, nr_variables=kwargs["nr_variables"],
+        sampler.set_graph_generator(generate_lattice_graph, nr_variables=kwargs["nr_variables"],
                                     sparsity_level=kwargs["sparsity_level"])
     elif graph_generator_name == "hub":
-        sampler.set_generator_model(generate_hub_graph, nr_variables=kwargs["nr_variables"], nr_hubs=kwargs["nr_hubs"])
+        sampler.set_graph_generator(generate_hub_graph, nr_variables=kwargs["nr_variables"], nr_hubs=kwargs["nr_hubs"])
     elif graph_generator_name == "random":
-        sampler.set_generator_model(generate_random_nm_graph, nr_variables=kwargs["nr_variables"],
+        sampler.set_graph_generator(generate_random_nm_graph, nr_variables=kwargs["nr_variables"],
                                     nr_edges=kwargs["nr_edges"])
     else:
         raise ValueError("No graph generator " + str(graph_generator_name) + " found.")
 
     weight_assigner_name = kwargs["weight_assigner"]
     if weight_assigner_name == 'bimodal':
-        sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=kwargs["neg-mean"],
-                                    pos_mean=kwargs["pos_mean"], std=kwargs["std"], neg_treshold=kwargs["neg_threshold"])
+        sampler.set_weight_assigner(weight_assigner=assign_weights_bimodal_distr, neg_mean=kwargs["neg_mean"],
+                                    pos_mean=kwargs["pos_mean"], std=kwargs["std"], neg_threshold=kwargs["neg_threshold"])
     else:
         raise ValueError("No weight assigner " + str(weight_assigner_name) + " found.")
 

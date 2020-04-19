@@ -20,7 +20,7 @@ class Fit_Wrapper:
             np.random.seed(random_seed)
 
     def run_experiment(self):
-        fit_data = self.model_to_fit.fit(self.prox_grad_params)
+        fit_data = self.model_to_fit.fit(**self.prox_grad_params)
 
         experiment_folder = self.data_file_path + self.experiment_name
         if(not os.path.isdir(experiment_folder)):
@@ -72,11 +72,13 @@ class Fit_Wrapper:
 
     @staticmethod
     def generate_model_prox_grad_params_dict(alpha=0.01, accelerated=True, max_iter=1000, line_search_rel_tol=1e-4,
-                                            max_line_search_iter=100, lambda_p=1.0, beta=0.5, rel_tol=1e-6, abs_tol=1e-9):
+                                            max_line_search_iter=100, lambda_p=1.0, beta=0.5, rel_tol=1e-6,
+                                             abs_tol=1e-9, early_stop_criterion='weight'):
 
         model_prox_grad_params = dict({'alpha': alpha, 'accelerated': accelerated, 'max_iter': max_iter,
-                                 'max_line_search_iter': max_line_search_iter, 'line_search_rel_tol': line_search_rel_tol,
-                                  'lambda_p': lambda_p, 'beta': beta, 'rel_tol': rel_tol, 'abs_tol': abs_tol})
+                                 'max_line_search_iter': max_line_search_iter,
+                                       'line_search_rel_tol': line_search_rel_tol, 'lambda_p': lambda_p, 'beta': beta,
+                                       'rel_tol': rel_tol, 'abs_tol': abs_tol, 'early_stop_criterion':early_stop_criterion})
 
         return model_prox_grad_params
 
@@ -109,8 +111,10 @@ class QPGM_FitWrapper(Fit_Wrapper):
         self.model_to_fit = QPGM(theta_init, theta_quad_init)
 
 class SPGM_FitWrapper(Fit_Wrapper):
-    def __init__(self, experiment_name, samples_name, random_seed, R, R0, theta_init=None, **model_prox_grad_params):
+    def __init__(self, experiment_name, samples_name, random_seed, R, R0, theta_init=None, method='SLSQP',
+                 **model_prox_grad_params):
         super(SPGM_FitWrapper, self).__init__(experiment_name, samples_name, random_seed, **model_prox_grad_params)
+        self.prox_grad_params['method'] = method
 
         nr_samples, nr_variables = self.data.shape
 

@@ -25,6 +25,7 @@ class SPGM(Model):
         self.R = R
         self.R0 = R0
         self.theta = np.array(theta)
+        self.condition = None
 
     def __setattr__(self, key, value):
         if key == 'R':
@@ -149,17 +150,17 @@ class SPGM(Model):
 
         return -ll, -grad_ll
 
-    def condition(self, node, theta, data):
-        conditions = 0
-        for kk in range(data.shape[0]):
-            datapoint = data[kk, :]
-            datapoint_sf = np.zeros((len(datapoint), ))
-            for ii, node_value in enumerate(datapoint):
-                datapoint_sf[ii] = self.sufficient_statistics(node_value)
-            dot_product = np.dot(theta, datapoint_sf) - theta[node] * datapoint_sf[node] + theta[node]
-            if(dot_product >= 0):
-                conditions += 1
-        return conditions
+    # def condition(self, node, theta, data):
+    #     conditions = 0
+    #     for kk in range(data.shape[0]):
+    #         datapoint = data[kk, :]
+    #         datapoint_sf = np.zeros((len(datapoint), ))
+    #         for ii, node_value in enumerate(datapoint):
+    #             datapoint_sf[ii] = self.sufficient_statistics(node_value)
+    #         dot_product = np.dot(theta, datapoint_sf) - theta[node] * datapoint_sf[node] + theta[node]
+    #         if(dot_product >= 0):
+    #             conditions += 1
+    #     return conditions
 
     @staticmethod
     def fit_prox_grad(node, model, data, alpha, method='SLSQP', accelerated=True, max_iter=5000, max_line_search_iter=50,
@@ -194,8 +195,7 @@ class SPGM(Model):
         likelihoods = []
 
         # Debug code to check if conditions that must be met are respected while training.
-        if model.condition is not None:
-            conditions = []
+        conditions = []
 
         theta_k_2 = np.array(theta_init)
         theta_k_1 = np.array(theta_init)
@@ -219,7 +219,13 @@ class SPGM(Model):
 
             sw = False
             for _ in range(max_line_search_iter):
-                z = SPGM.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha)
+                optimize_result = SPGM.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha,
+                                                     node=node, data=data, method=method)
+                if not optimize_result['success']:
+                    sw = False
+                    break
+
+                z = optimize_result['x']
                 f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * np.sum((z - y_k) ** 2)
                 f_z = f(node, data, z)  # NLL at current step.
                 if f_z < f_tilde or np.isclose(f_z, f_tilde, rtol=line_search_rel_tol):
