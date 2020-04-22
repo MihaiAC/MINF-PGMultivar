@@ -11,7 +11,7 @@ from mpgm.mpgm.samplers import generate_model_samples
 
 
 parser = argparse.ArgumentParser(description="Parsing script arguments.")
-parser.add_argument('--mode', type=str, help='Mode in which the package will be used. Available options: sample|fit|evaluate')
+parser.add_argument('--mode', type=str, help='Mode in which the package will be used. Available options: sample|fit|sample_fit')
 parser.add_argument('--model', type=str, help='TPGM|QPGM|SPGM|LPGM')
 parser.add_argument('--random_seed', type=int, help='Random seed to be used.')
 
@@ -66,37 +66,7 @@ parser.add_argument('--QPGM_qtp_c', type=float, default=1e4, help='See docstring
 # TODO: Prox grad relaxation parameter?.
 args = parser.parse_args()
 
-mode = args.mode
-if mode == 'sample':
-    model = args.model
-    random_seed = args.random_seed
-    nr_variables = args.nr_variables
-
-    if model == "QPGM":
-        theta_quad = np.random.normal(-0.1, 0.02, (nr_variables, ))
-    else:
-        theta_quad = None
-
-    if model == "TPGM":
-        init = np.random.randint(0, args.R-1, (nr_variables, ))
-    elif model == "QPGM":
-        init = np.random.randint(0, 10, (nr_variables, ))
-    elif model == "SPGM":
-        init = np.random.randint(0, args.R-1, (nr_variables, ))
-    elif model == "LPGM":
-        pass
-
-    generate_model_samples(model=model, samples_name=args.samples_name, random_seed=args.random_seed,
-                           graph_generator=args.graph_generator, nr_variables=args.nr_variables,
-                           alpha=args.scale_free_alpha, beta=args.scale_free_beta, gamma=args.scale_free_gamma,
-                           sparsity_level=args.lattice_sparsity_level, nr_hubs=args.hub_nr_hubs,
-                           nr_edges=args.random_nr_edges, weight_assigner=args.weight_assigner,
-                           neg_mean=args.wa_bimodal_neg_mean, pos_mean=args.wa_bimodal_pos_mean,
-                           std=args.wa_bimodal_std, neg_threshold=args.wa_bimodal_neg_threshold, R=args.R,
-                           theta_quad=theta_quad, R0=args.R0, init=init, nr_samples=args.nr_samples,
-                           burn_in=args.gibbs_burn_in, thinning_nr=args.gibbs_thinning_nr)
-
-elif mode == 'fit':
+def fit(args):
     experiment_name = args.experiment_name
     samples_name = args.samples_name
     random_seed = args.random_seed
@@ -124,8 +94,8 @@ elif mode == 'fit':
                                       line_search_rel_tol=args.line_search_rel_tol, lambda_p=args.prox_grad_lambda_p,
                                       beta=args.prox_grad_beta, rel_tol=args.prox_grad_rel_tol,
                                       abs_tol=args.prox_grad_abs_tol, early_stop_criterion=args.early_stop_criterion
-                                      ) 
-    
+                                      )
+
     elif args.model == 'SPGM':
         fit_wrapper = SPGM_FitWrapper(experiment_name, samples_name, random_seed, args.R, args.R0, theta_init=None,
                                       method=args.SPGM_prox_method,
@@ -140,8 +110,47 @@ elif mode == 'fit':
 
     fit_wrapper.run_experiment()
 
-elif mode == 'evaluate':
-    pass
+def sample(args):
+    model = args.model
+    random_seed = args.random_seed
+    nr_variables = args.nr_variables
+
+    if model == "QPGM":
+        theta_quad = np.random.normal(-0.1, 0.02, (nr_variables,))
+    else:
+        theta_quad = None
+
+    if model == "TPGM":
+        init = np.random.randint(0, args.R - 1, (nr_variables,))
+    elif model == "QPGM":
+        init = np.random.randint(0, 10, (nr_variables,))
+    elif model == "SPGM":
+        init = np.random.randint(0, args.R - 1, (nr_variables,))
+    elif model == "LPGM":
+        pass
+
+    generate_model_samples(model=model, samples_name=args.samples_name, random_seed=args.random_seed,
+                           graph_generator=args.graph_generator, nr_variables=args.nr_variables,
+                           alpha=args.scale_free_alpha, beta=args.scale_free_beta, gamma=args.scale_free_gamma,
+                           sparsity_level=args.lattice_sparsity_level, nr_hubs=args.hub_nr_hubs,
+                           nr_edges=args.random_nr_edges, weight_assigner=args.weight_assigner,
+                           neg_mean=args.wa_bimodal_neg_mean, pos_mean=args.wa_bimodal_pos_mean,
+                           std=args.wa_bimodal_std, neg_threshold=args.wa_bimodal_neg_threshold, R=args.R,
+                           theta_quad=theta_quad, R0=args.R0, init=init, nr_samples=args.nr_samples,
+                           burn_in=args.gibbs_burn_in, thinning_nr=args.gibbs_thinning_nr)
+
+
+def sample_fit(args):
+    sample(args)
+    fit(args)
+
+mode = args.mode
+if mode == 'sample':
+    sample(args)
+elif mode == 'fit':
+    fit(args)
+elif mode == 'sample_fit':
+    sample_fit(args)
 else:
-    print('Mode not found. Must be one of: \"sample\", \"fit\" or \"evaluate\".')
+    print('Mode not found. Must be one of: \"sample\", \"fit\" or \"sample_fit\".')
 
