@@ -192,17 +192,3 @@ class LPGM(Model):
         alpha_opt_index = self.select_optimal_alpha(abars_subsamples)
 
         return alpha_values[alpha_opt_index], ahats_main[alpha_opt_index, :, :]
-'''
-lpgm = LPGM(10, 10, 0.05, 100, np.zeros((10, )))
-nr_variables = 10
-all_thetas = []
-for kk in range(nr_variables):
-    sub_thetas_main = np.random.normal(0, 0.01, (100, nr_variables))
-    sub_thetas_subsamples = np.random.normal(0, 0.01, (10, 100, 10))
-    all_thetas.append((sub_thetas_main, sub_thetas_subsamples))
-thetas_main, thetas_subsamples = LPGM.make_matrices(all_thetas, nr_variables, 100, 10)
-ahats_main, ahats_subsamples = LPGM.make_ahats(thetas_main, thetas_subsamples)
-abars_subsamples = LPGM.make_abars_subsamples(ahats_subsamples)
-alpha_opt_index = lpgm.select_optimal_alpha(abars_subsamples)
-print(ahats_main[alpha_opt_index, :, :])
-'''

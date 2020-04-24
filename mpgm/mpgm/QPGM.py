@@ -53,7 +53,7 @@ class QPGM(Model):
             partition_max_exp = -np.inf
             kk = 0
             curr_exp = 1
-            #TODO: good stopping condition?
+
             while len(partition_exponents) < 200 or (len(partition_exponents) <= 500 and np.exp(curr_exp)/np.exp(partition_max_exp) > 1e-10):
                 curr_exp = dot_product * kk + self.theta_quad[node] * (kk ** 2)
                 partition_exponents.append(curr_exp)
@@ -172,10 +172,8 @@ class QPGM(Model):
             f_y_k, grad_y_k = f_and_grad_f(node, data, y_k)
 
             sw = False
-            # TODO: prox_operator | thresholding should be outside of the line search (I'm pretty sure, can compare).
-            # Does it make that much of a difference, though?
             for _ in range(max_line_search_iter):
-                z = QPGM.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha, qtp_c=qtp_c)
+                z = Model.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha)
                 f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * np.sum((z - y_k) ** 2)
                 f_z = f(node, data, z)  # NLL at current step.
                 if f_z < f_tilde or np.isclose(f_z, f_tilde, rtol=1e-4):
@@ -184,6 +182,8 @@ class QPGM(Model):
                 else:
                     lambda_k = lambda_k * beta
             if sw:
+                z = QPGM.satisfy_constraints(z, qtp_c=qtp_c)
+
                 theta_k_2 = theta_k_1
                 theta_k_1 = z
 
@@ -217,15 +217,12 @@ class QPGM(Model):
         return theta_k_1, likelihoods, conditions, converged
 
     @staticmethod
-    def prox_operator(x, threshold, qtp_c=1e4):
-        ret_vector = np.zeros((len(x), ))
-        ret_vector[:-1] = Model.prox_operator(x[:-1], threshold)
-
+    def satisfy_constraints(x, qtp_c=1e4):
         # We have the constraint that theta_ss = x[-1] should remain negative, below a threshold -1/qtp_c.
-        # So, we need to find the minimum of (theta_ss - x[-1]) ** 2 subject to theta_ss <= -1/qtp_c.
 
-        ret_vector[-1] = x[-1] - max(0, x[-1] + 1/qtp_c)
-        return ret_vector
+        if x[-1] > -1/qtp_c:
+            x[-1] = -1/qtp_c
+        return x
 
     def fit(self, **prox_grad_params):
         nr_nodes = prox_grad_params['data'].shape[1]

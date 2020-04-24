@@ -105,7 +105,6 @@ class TPGM(Model):
 
         log_partition += np.log(sum_of_rest)
 
-        # TODO: remove debug statement.
         ll = dot_product * datapoint[node] - gammaln(datapoint[node]+1) - log_partition
         return ll, log_partition
 
@@ -142,10 +141,6 @@ class TPGM(Model):
             if ii != node:
                 grad[ii] = datapoint[ii] * grad[node]
 
-        # Test what happens if we keep the node parameters to 0.
-        # TODO: remove this after testing.
-        grad[node] = 0
-
         return grad
 
     def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
@@ -154,7 +149,6 @@ class TPGM(Model):
 
         return -ll, -grad_ll
 
-    # TODO: Need theta_init, R as initial model parameters.
     def fit(self, **prox_grad_params):
         model_params = [self.theta, self.R]
 

@@ -40,7 +40,7 @@ parser.add_argument('--gibbs_thinning_nr', type=int, default=100, help="Thinning
 # - model args;
 parser.add_argument('--R', type=int, default=10, help='Truncation value.')
 parser.add_argument('--R0', type=int, default=5, help='R0 parameter used in the SPGM model')
-# TODO: revise this.
+
 parser.add_argument('--lpgm_m', type=int, default = 0, help='See LPGM model.')
 parser.add_argument('--lpgm_B', type=float, default=0, help='See LPGM model.')
 parser.add_argument('--lpgm_beta', type=float, default=0, help='See LPGM model.')
@@ -63,7 +63,7 @@ parser.add_argument('--early_stop_criterion', type=str, default="weight",
 parser.add_argument('--SPGM_prox_method', type=str, default='SLSQP', help='See docstring of SLPGM.prox_grad. Choose from: '
                                                                      'SLSQP|COBYLA')
 parser.add_argument('--QPGM_qtp_c', type=float, default=1e4, help='See docstring of QPGM.fit_prox_grad.')
-# TODO: Prox grad relaxation parameter?.
+
 args = parser.parse_args()
 
 def fit(args):

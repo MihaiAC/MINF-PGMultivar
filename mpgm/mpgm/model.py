@@ -98,7 +98,6 @@ class Model():
         converged = False
 
         nr_variables = len(theta_init)
-        #parameters_regularization_path = np.array(theta_init).reshape((1, nr_variables))
 
         z = np.zeros(np.size(theta_init))
         f_z = 0
@@ -124,8 +123,6 @@ class Model():
             if sw:
                 theta_k_2 = theta_k_1
                 theta_k_1 = z
-
-                #parameters_regularization_path = np.concatenate((parameters_regularization_path, theta_k_1.reshape((1, nr_variables))), axis=0)
 
                 likelihoods.append(f_z)
 
@@ -155,15 +152,6 @@ class Model():
                 print('\nProx grad failed to converge for node ' + str(node))
                 break
 
-        #fig, ax = plt.subplots(nrows=1, ncols=1)
-        #for ii in range(nr_variables):
-        #    ax.plot(np.array(range(parameters_regularization_path.shape[0])), parameters_regularization_path[:, ii], label='param_' + str(node) + str(ii))
-        #ax.set_title('Regularization path for node ' + str(node))
-        #ax.set_xlabel('Iteration number')
-        #ax.set_ylabel('Parameter value')
-        #ax.legend()
-        #fig.savefig('regularization_path_node_' + str(node) + '.png')
-
         return theta_k_1, np.array(likelihoods), conditions, converged
 
     @staticmethod
@@ -171,8 +159,6 @@ class Model():
         """
         Applies the soft thresholding operation to vector x with the specified threshold.
 
-        :param x:
-        :param threshold:
         :return:
         """
         x_plus = x - threshold

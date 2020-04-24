@@ -219,13 +219,8 @@ class SPGM(Model):
 
             sw = False
             for _ in range(max_line_search_iter):
-                optimize_result = SPGM.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha,
-                                                     node=node, data=data, method=method)
-                if not optimize_result['success']:
-                    sw = False
-                    break
+                z = Model.prox_operator(y_k - lambda_k * grad_y_k, threshold=lambda_k * alpha)
 
-                z = optimize_result['x']
                 f_tilde = f_y_k + np.dot(grad_y_k, z - y_k) + (1 / (2 * lambda_k)) * np.sum((z - y_k) ** 2)
                 f_z = f(node, data, z)  # NLL at current step.
                 if f_z < f_tilde or np.isclose(f_z, f_tilde, rtol=line_search_rel_tol):
@@ -234,6 +229,15 @@ class SPGM(Model):
                 else:
                     lambda_k = lambda_k * beta
             if sw:
+                optimize_result = SPGM.satisfy_constraints(x, node, data, method)
+
+                if not optimize_result['success']:
+                    converged = False
+                    print('\nProx grad failed to converge for node ' + str(node))
+                    break
+                else:
+                    z = optimize_result['x']
+
                 theta_k_2 = theta_k_1
                 theta_k_1 = z
 
@@ -341,11 +345,11 @@ class SPGM(Model):
         return dict_seq
 
     @staticmethod
-    def prox_operator(x, threshold, node, data, method):
+    def satisfy_constraints(x, node, data, method):
         """
         Returns an OptimizeResult object.
         """
-        objective = Model.prox_operator(x, threshold)
+        objective = x
 
         # Construct parameters for scipy.optimize.minimize.
         func_to_optimize = SPGM.l2norm_partial(objective)

@@ -75,8 +75,3 @@ def generate_random_nm_graph(nr_variables, nr_edges=0):
     G = nx.gnm_random_graph(nr_variables, nr_edges, seed=np.random)
     G = nx.Graph(G)
     return nx.to_numpy_array(G)
-
-if __name__ == '__main__':
-    print(generate_random_nm_graph(10, 3))
-
-
