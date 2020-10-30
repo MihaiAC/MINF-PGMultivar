@@ -8,11 +8,11 @@ class Weight_Assigner():
         return graph
 
 class Bimodal_Distr_Weight_Assigner(Weight_Assigner):
-    def __init__(self, neg_mean=-0.04, pos_mean=0.04, neg_threshold=0.5, std=0.03):
+    def __init__(self, neg_mean=-0.04, pos_mean=0.04, threshold=0.5, std=0.02):
         super().__init__()
         self.neg_mean = neg_mean
         self.pos_mean = pos_mean
-        self.neg_threshold = neg_threshold
+        self.threshold = threshold
         self.std = std
 
     def assign_weights(self, graph):
@@ -22,7 +22,7 @@ class Bimodal_Distr_Weight_Assigner(Weight_Assigner):
             for jj in range(ii):
                 if (graph[ii][jj] != 0):
                     uu = np.random.uniform(0, 1)
-                    if (uu < self.neg_threshold):
+                    if (uu < self.threshold):
                         weight = np.random.normal(self.neg_mean, self.std)
                     else:
                         weight = np.random.normal(self.pos_mean, self.std)

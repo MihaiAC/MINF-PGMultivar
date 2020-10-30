@@ -21,10 +21,9 @@ class TPGM(Model):
                       N x N array, representing the starting theta values for when we want to fit the model.
         :param R: maximum count value, should be an integer.
         """
-        super().__init__()
+        super().__init__(theta)
         self.R = R
         self.theta = theta
-        self.condition = None # Condition to be checked after each iteration of prox grad.
 
     def __setattr__(self, key, value):
         if key == 'R':

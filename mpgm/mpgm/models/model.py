@@ -2,8 +2,8 @@ import numpy as np
 
 # All model subclasses that permit sampling, must have a parameter named theta.
 class Model():
-    def __init__(self, *params):
-        pass
+    def __init__(self, theta):
+        self.theta = theta
 
     def generate_node_sample(self, node, nodes_values):
         pass
