@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 from multiprocessing import Pool
-from mpgm.mpgm.model import Model
+from mpgm.mpgm.models.model import Model
 from tqdm import tqdm
 
 

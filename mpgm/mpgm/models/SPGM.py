@@ -3,7 +3,7 @@ from tqdm import tqdm
 from multiprocessing import Pool
 from scipy.special import gammaln
 from scipy.optimize import minimize
-from mpgm.mpgm.model import Model
+from mpgm.mpgm.models.model import Model
 from functools import partial
 
 

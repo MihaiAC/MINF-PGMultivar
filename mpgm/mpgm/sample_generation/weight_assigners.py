@@ -1,13 +1,13 @@
 import numpy as np
 
-class weight_assigner():
+class Weight_Assigner():
     def __init__(self):
         pass
 
     def assign_weights(self, graph):
         return graph
 
-class bimodal_distr_weight_assigner(weight_assigner):
+class Bimodal_Distr_Weight_Assigner(Weight_Assigner):
     def __init__(self, neg_mean=-0.04, pos_mean=0.04, neg_threshold=0.5, std=0.03):
         super().__init__()
         self.neg_mean = neg_mean

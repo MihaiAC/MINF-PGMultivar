@@ -1,7 +1,6 @@
 import numpy as np
-from math import floor
 from multiprocessing import Pool
-from mpgm.mpgm.model import Model
+from mpgm.mpgm.models.model import Model
 
 class LPGM(Model):
     def __init__(self, lpgm_m, lpgm_B, lpgm_beta, nr_alphas, seeds):

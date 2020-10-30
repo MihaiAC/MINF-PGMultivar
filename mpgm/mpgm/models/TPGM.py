@@ -1,8 +1,7 @@
 import numpy as np
-from multiprocessing import Pool
-from mpgm.mpgm.model import Model
+from mpgm.mpgm.models.model import Model
 from scipy.special import gammaln
-from tqdm import tqdm
+from typing import Tuple
 
 
 class TPGM(Model):
@@ -14,7 +13,7 @@ class TPGM(Model):
     :param data: Data to fit the model with.
     """
 
-    def __init__(self, theta=None, R=100):
+    def __init__(self, theta:np.array=None, R:int=100):
         """
         Constructor for TPGM class.
 
@@ -33,28 +32,8 @@ class TPGM(Model):
             assert value <= 100, "The model has not been tested with R values higher than 100"
         super(TPGM, self).__setattr__(key, value)
 
-    def generate_node_sample(self, node, nodes_values):
-        """
-        Generate a sample for node from its node-conditional probability.
-
-        :param node: Node to generate sample for.
-        :param data: Current values of the nodes (ordered).
-        :return: A sample from the node-conditional probability of our node.
-        """
-
-        uu = np.random.uniform(0, 1)
-
-        prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, nodes_values)
-        cdf = prob1
-
-        for node_value in range(1, self.R + 1):
-            if uu < cdf:
-                return node_value-1
-            cdf += self.node_cond_prob(node, node_value, nodes_values, dot_product, partition_max_exp, partition_reduced)[0]
-
-        return self.R
-
-    def node_cond_prob(self, node, node_value, data, dot_product=None, partition_max_exp=None, partition_reduced=None):
+    def node_cond_prob(self, node:int, node_value:int, data:np.array, dot_product:float=None,
+                       partition_max_exp:float=None, partition_reduced:float=None) -> Tuple[float, float, float, float]:
         """
         Calculates the probability of node having the provided value given the other nodes.
 
@@ -83,7 +62,7 @@ class TPGM(Model):
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
 
-    def calculate_ll_datapoint(self, node, datapoint, theta_curr):
+    def calculate_ll_datapoint(self, node:int, datapoint:np.array, theta_curr:np.array) -> Tuple[float, float]:
         """
         :return: returns (nll_datapoint, log_partition)
         """
@@ -108,7 +87,7 @@ class TPGM(Model):
         ll = dot_product * datapoint[node] - gammaln(datapoint[node]+1) - log_partition
         return ll, log_partition
 
-    def calculate_grad_ll_datapoint(self, node, datapoint, theta_curr, log_partition):
+    def calculate_grad_ll_datapoint(self, node:int, datapoint:np.array, theta_curr:np.array) -> np.array:
         grad = np.zeros(datapoint.shape)
 
         dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
@@ -119,6 +98,7 @@ class TPGM(Model):
         exponents_numerator = []
         exponents_denominator = []
         exponents_denominator.append(-gammaln(1))
+
         for kk in range(1, self.R+1):
             exponents_numerator.append(dot_product * kk - gammaln(kk+1) + np.log(kk))
             exponents_denominator.append(dot_product * kk - gammaln(kk+1))
@@ -143,12 +123,7 @@ class TPGM(Model):
 
         return grad
 
-    def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
-        ll, log_partition = self.calculate_ll_datapoint(node, datapoint, theta_curr)
-        grad_ll = self.calculate_grad_ll_datapoint(node, datapoint, theta_curr, log_partition)
-
-        return -ll, -grad_ll
-
+'''
     def fit(self, **prox_grad_params):
         model_params = [self.theta, self.R]
 
@@ -162,6 +137,8 @@ class TPGM(Model):
                 ordered_results[result[0]] = result[1]
 
         return ordered_results
+
+'''
 
 if __name__=='__main__':
     pass
