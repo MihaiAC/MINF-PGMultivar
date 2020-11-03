@@ -1,0 +1,24 @@
+﻿Notes for Minf progress:
+Created a class for GibbsSamplers. They will be subclassed for each model that we can sample from with Gibbs sampling (why?: generate_node_sample must know about the inner 
+workings of the model + mention the change node_cond_prob must return the format: (cond_prob, aux arguments), 
+aux_arguments will be fed in the next function call for speedup (more on this later).
+
+Explain how generate_samples works:
+- Generate graph structure;
+- Assign weights;
+- Initialise model + ascribe graph to theta;
+- Initialise GibbsSamplers object + generate the samples;
+
+SampleParams: object which saves the objects used to generate the samples (explain the structure).
+SampleParamsWrapper: an object which is initialised with ...
+Then, we add the components necessary for sample generation one by one.
+Can call generate samples wiht parameters ... and the samples + what was used to generate them are saved in the sqlitedict, with the id given.
+The parameters can then be changed + sample generation repeated.
+SampleParamsWrapper holds an internal SampleParams object, which is updated as soon as the other params are updated.
+
+Objectives: reusability - make it easy to generate multiple samples where only an argument of one component changes.
+Since last year I wanted to do experiments in which only one argument was changing, and the previous implementation made it hard to do so. (since... ? - explain)
+
+Objective: type annotations for each function.
+
+
