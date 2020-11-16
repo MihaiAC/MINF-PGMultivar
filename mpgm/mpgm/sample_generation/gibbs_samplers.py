@@ -9,7 +9,7 @@ class GibbsSampler():
         self.thinning_nr = thinning_nr
 
     def generate_node_sample(self, model:Model, node:int, nodes_values:np.array) -> int:
-        return 1
+        pass
 
     def generate_samples(self, model:Model, init:np.array, nr_samples:int) -> np.array:
         """
@@ -41,14 +41,14 @@ class TPGMGibbsSampler(GibbsSampler):
     def generate_node_sample(self, model:TPGM, node:int, nodes_values:np.array) -> int:
         uu = np.random.uniform(0, 1)
 
-        return_vals = model.node_cond_prob(node, -1, nodes_values)
+        return_vals = model.node_cond_prob(node, 0, nodes_values)
         cdf = return_vals[0]
         aux_params = return_vals[1:]
 
-        for node_value in range(0, model.R+1):
+        for node_value in range(1, model.R+1):
             if uu < cdf:
-                return node_value-2
-            return_vals = model.node_cond_prob(node, -1, nodes_values, *aux_params)
+                return node_value-1
+            return_vals = model.node_cond_prob(node, node_value, nodes_values, *aux_params)
             cond_prob = return_vals[0]
             aux_params = return_vals[1:]
 

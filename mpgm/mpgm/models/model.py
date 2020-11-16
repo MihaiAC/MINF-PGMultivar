@@ -1,17 +1,21 @@
 import numpy as np
+from typing import Tuple
 
 # All model subclasses that permit sampling, must have a parameter named theta.
 class Model():
     def __init__(self, theta):
         self.theta = theta
 
-    def generate_node_sample(self, node, nodes_values):
+    def node_cond_prob(self, node:int, node_value:int, data=np.ndarray) -> Tuple[float]:
         pass
 
     def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):
         pass
 
     def calculate_ll_datapoint(self, node, datapoint, theta_curr):
+        pass
+
+    def calculate_grad_ll_datapoint(self, node:int, datapoint:np.ndarray, theta_curr:np.ndarray) -> np.ndarray:
         pass
 
     def calculate_nll_and_grad_nll(self, node, data, theta_curr):

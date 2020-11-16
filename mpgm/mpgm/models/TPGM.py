@@ -1,7 +1,7 @@
 import numpy as np
 from mpgm.mpgm.models.model import Model
-from scipy.special import gammaln
-from typing import Tuple
+from scipy.special import gammaln, logsumexp
+from typing import Tuple, Optional
 
 
 class TPGM(Model):
@@ -31,8 +31,9 @@ class TPGM(Model):
             assert value <= 100, "The model has not been tested with R values higher than 100"
         super(TPGM, self).__setattr__(key, value)
 
-    def node_cond_prob(self, node:int, node_value:int, data:np.array, dot_product:float=None,
-                       partition_max_exp:float=None, partition_reduced:float=None) -> Tuple[float, float, float, float]:
+    def node_cond_prob(self, node:int, node_value:int, data:np.ndarray, dot_product:Optional[float]=None,
+                       partition:Optional[float]=None) -> \
+            Tuple[float, float, float]:
         """
         Calculates the probability of node having the provided value given the other nodes.
 
@@ -47,53 +48,36 @@ class TPGM(Model):
         if dot_product is None:
             dot_product = np.dot(self.theta[node, :], data) - self.theta[node, node] * data[node] + self.theta[node, node]
 
-        if partition_reduced is None:
+        if partition is None:
             partition_exponents = np.zeros((self.R+1, ))
             for kk in range(self.R+1):
                 partition_exponents[kk] = dot_product * kk - gammaln(kk+1)
 
-            partition_max_exp = max(partition_exponents)
-            partition_reduced = 0
-            for kk in range(self.R+1):
-                partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
+            partition = np.exp(logsumexp(partition_exponents))
 
-        cond_prob = np.exp(dot_product * node_value - gammaln(node_value+1) - partition_max_exp)/partition_reduced
-
-        return cond_prob, partition_max_exp, partition_reduced, dot_product
+        cond_prob = np.exp(dot_product * node_value - gammaln(node_value+1))/partition
+        return cond_prob, dot_product, partition
 
     def calculate_ll_datapoint(self, node:int, datapoint:np.array, node_theta_curr:np.array) -> float:
         """
         :return: returns (nll_datapoint, log_partition)
         """
-
-        log_partition = 0
-
-        exponents = []
         dot_product = np.dot(datapoint, node_theta_curr) - node_theta_curr[node] * datapoint[node] + node_theta_curr[node]
+
+        partition_exponents = np.zeros((self.R+1, ))
         for kk in range(self.R+1):
-            curr_exponent = dot_product * kk - gammaln(kk+1)
-            exponents.append(curr_exponent)
+            partition_exponents[kk] = dot_product * kk - gammaln(kk+1)
 
-        max_exponent = max(exponents)
-        log_partition += max_exponent
-
-        sum_of_rest = 0
-        for kk in range(self.R+1):
-            sum_of_rest += np.exp(exponents[kk] - max_exponent)
-
-        log_partition += np.log(sum_of_rest)
-
+        log_partition = logsumexp(partition_exponents)
         ll = dot_product * datapoint[node] - gammaln(datapoint[node]+1) - log_partition
+
         return ll
 
-    def calculate_grad_ll_datapoint(self, node:int, datapoint:np.array, theta_curr:np.array) -> np.array:
+    def calculate_grad_ll_datapoint(self, node:int, datapoint:np.ndarray, theta_curr:np.ndarray) -> np.ndarray:
         grad = np.zeros(datapoint.shape)
 
         dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
 
-        #log_partition_derivative_term = 0
-        #for kk in range(1, self.R+1):
-        #    log_partition_derivative_term += np.exp(dot_product * kk - gammaln(kk+1) + np.log(kk) - log_partition)
         exponents_numerator = []
         exponents_denominator = []
         exponents_denominator.append(-gammaln(1))
