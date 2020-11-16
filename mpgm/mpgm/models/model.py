@@ -30,6 +30,18 @@ class Model():
 
         return nll, grad_nll
 
+    def calculate_grad_nll(self, node, data, theta_curr):
+        N = data.shape[0]
+        grad_nll = np.zeros((len(theta_curr), ))
+
+        for ii in range(N):
+            grad_nll_ii = self.calculate_grad_nll(node, data, theta_curr)
+            grad_nll += grad_nll_ii
+
+        grad_nll = grad_nll/N
+
+        return grad_nll
+
     def calculate_nll(self, node, data, theta_curr):
         N = data.shape[0]
 

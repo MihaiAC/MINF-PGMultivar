@@ -1,4 +1,6 @@
 import numpy as np
+import multiprocessing
+from typing import Callable, Optional, Iterator, Any, Tuple, List
 
 class Prox_Grad_Fitter():
     def __init__(self, alpha, accelerated=True, max_iter=5000, max_line_search_iter=50,
@@ -55,6 +57,45 @@ class Prox_Grad_Fitter():
     def check_line_search_condition_closeto(self, f_z, f_tilde):
         return f_z <= f_tilde or np.isclose(f_z, f_tilde, rtol=self.line_search_rel_tol)
 
+    def fit_node_parameter_generator(self, nr_nodes:int, nll:Callable[[int, np.ndarray, np.ndarray], float],
+                      grad_nll:Callable[[int, np.array, np.array], np.array],
+                      data_points:np.array, theta_init:np.array) -> Iterator[Any]:
+        for node in range(nr_nodes):
+            yield (node, nll, grad_nll, data_points, theta_init)
+
+    def call_fit_node(self, nll:Callable[[int, np.array, np.array], float],
+                      grad_nll:Callable[[int, np.array, np.array], np.array],
+                      data_points:np.array,
+                      theta_init:np.array,
+                      parallelize:Optional[bool]=True) -> Tuple[np.ndarray, List[np.ndarray], List[bool], List[Any]]:
+
+        nr_nodes = data_points.shape[1]
+        theta_fit = np.zeros(theta_init.shape)
+        likelihoods = []
+        converged = []
+        conditions = []
+
+        if parallelize == False:
+            for node in nr_nodes:
+                theta_fit_node, likelihoods_node, converged_node, conditions_node = \
+                    self.fit_node(node, nll, grad_nll, data_points, theta_init)
+                theta_fit[node, :] = theta_fit_node
+                likelihoods.append(likelihoods_node)
+                converged.append(converged_node)
+                conditions.append(conditions_node)
+
+        else:
+            nr_cpus = multiprocessing.cpu_count()
+            with multiprocessing.Pool(processes=nr_cpus-1) as pool:
+                results = pool.starmap(self.fit_node, self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
+            for node, node_result in enumerate(results):
+                theta_fit[node, :] = node_result[0]
+                likelihoods.append(node_result[1])
+                converged.append(node_result[2])
+                conditions.append(conditions[3])
+
+        return (theta_fit, likelihoods, converged, conditions)
+
     def fit_node(self, node, nll, grad_nll, data_points, theta_init):
         """
 
@@ -63,7 +104,8 @@ class Prox_Grad_Fitter():
         :param grad_nll: calculates gradient of negative ll.
         :param data_points: N x m matrix, N = number of points and m = number of nodes in the graph.
         :param theta_init: m x m matrix; theta_init[node, :] must contain the initial guesses for the parameters fit here.
-        :return:
+        :return: (parameters which resulted from the method, list of lists of line search likelihoods,
+        bool which indicated if the method converged, not sure what this was)
         """
 
         likelihoods = []
@@ -84,6 +126,7 @@ class Prox_Grad_Fitter():
             grad_f_theta_k = grad_nll(node, data_points, theta_k)
 
             found_step_size = False
+
             for _ in range(self.max_line_search_iter):
                 candidate_new_theta_k = theta_k - step_size_k * grad_f_theta_k
                 threshold = step_size_k * self.alpha
@@ -104,7 +147,7 @@ class Prox_Grad_Fitter():
 
                 likelihoods.append(f_z)
 
-                # Need model-specific condition checking? Not sure.
+                # Model-specific condition checking? Not sure.
 
                 if self.early_stop_criterion == 'weight':
                     converged_params = (theta_k_1 - theta_k_2) ** 2 <= (self.rel_tol ** 2) * (theta_k_1 ** 2)

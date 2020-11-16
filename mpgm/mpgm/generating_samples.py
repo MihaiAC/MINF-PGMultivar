@@ -2,7 +2,6 @@
 from mpgm.mpgm.sample_generation.gibbs_samplers import *
 from mpgm.mpgm.sample_generation.graph_generators import *
 from mpgm.mpgm.sample_generation.weight_assigners import *
-from typing import Dict, Any, Type
 from sqlitedict import SqliteDict
 import numpy as np
 
@@ -69,17 +68,33 @@ class SampleParamsWrapper():
     def nr_variables(self):
         return self.SPS.nr_variables
 
+    @nr_variables.setter
+    def nr_variables(self, value:int):
+        self.SPS.nr_variables = value
+
     @property
     def nr_samples(self):
         return self.SPS.nr_samples
+
+    @nr_samples.setter
+    def nr_samples(self, value:int):
+        self.SPS.nr_samples = value
 
     @property
     def random_seed(self):
         return self.SPS.random_seed
 
+    @random_seed.setter
+    def random_seed(self, value:int):
+        self.SPS.random_seed = value
+
     @property
     def samples_init(self):
         return self.SPS.samples_init
+
+    @samples_init.setter
+    def samples_init(self, value:np.ndarray):
+        self.SPS.samples_init = value
 
     @property
     def graph_generator(self):
@@ -131,12 +146,12 @@ class SampleParamsWrapper():
         samples_dict[sample_id] = self.SPS
         samples_dict.close()
 
-        return self.SPS.samples
-
     @staticmethod
     def load_samples(sample_id:str, sqlite_file_name:str) -> SampleParamsSave:
         samples_dict = SqliteDict('./' + sqlite_file_name, autocommit=True)
-        return samples_dict[sample_id]
+        SPS = samples_dict[sample_id]
+        samples_dict.close()
+        return SPS
 
 if __name__ == "__main__":
     sqlite_file_name = "samples.sqlite"

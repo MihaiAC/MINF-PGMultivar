@@ -61,7 +61,7 @@ class TPGM(Model):
 
         return cond_prob, partition_max_exp, partition_reduced, dot_product
 
-    def calculate_ll_datapoint(self, node:int, datapoint:np.array, theta_curr:np.array) -> Tuple[float, float]:
+    def calculate_ll_datapoint(self, node:int, datapoint:np.array, node_theta_curr:np.array) -> float:
         """
         :return: returns (nll_datapoint, log_partition)
         """
@@ -69,7 +69,7 @@ class TPGM(Model):
         log_partition = 0
 
         exponents = []
-        dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
+        dot_product = np.dot(datapoint, node_theta_curr) - node_theta_curr[node] * datapoint[node] + node_theta_curr[node]
         for kk in range(self.R+1):
             curr_exponent = dot_product * kk - gammaln(kk+1)
             exponents.append(curr_exponent)
@@ -84,7 +84,7 @@ class TPGM(Model):
         log_partition += np.log(sum_of_rest)
 
         ll = dot_product * datapoint[node] - gammaln(datapoint[node]+1) - log_partition
-        return ll, log_partition
+        return ll
 
     def calculate_grad_ll_datapoint(self, node:int, datapoint:np.array, theta_curr:np.array) -> np.array:
         grad = np.zeros(datapoint.shape)
@@ -121,23 +121,3 @@ class TPGM(Model):
                 grad[ii] = datapoint[ii] * grad[node]
 
         return grad
-
-'''
-    def fit(self, **prox_grad_params):
-        model_params = [self.theta, self.R]
-
-        nr_nodes = prox_grad_params['data'].shape[1]
-
-        ordered_results = [()] * nr_nodes
-        with Pool(processes=4) as pool:
-            for result in tqdm(pool.imap_unordered(TPGM.call_prox_grad_wrapper,
-                                                   iter(((model_params, prox_grad_params, x) for x in range(nr_nodes))),
-                                                   chunksize=1), total=nr_nodes):
-                ordered_results[result[0]] = result[1]
-
-        return ordered_results
-
-'''
-
-if __name__=='__main__':
-    pass
