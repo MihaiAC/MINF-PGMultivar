@@ -99,6 +99,7 @@ class TPGM(Model):
         log_partition_derivative_term = np.exp(max_exponent_numerator - max_exponent_denominator) * \
                                         (sum_numerator/sum_denominator)
 
+        # TODO: Does this work as expected (reference-wise?)
         grad[node] = datapoint[node] - log_partition_derivative_term
         for ii in range(datapoint.shape[0]):
             if ii != node:

@@ -25,11 +25,11 @@ if __name__ == "__main__":
     fit_id = "debugProxGrad"
     fit_file_name = "fit_models.sqlite"
 
-    # SPS = SampleParamsWrapper.load_samples(samples_id, samples_file_name)
-    # print(SPS.model_params)
+    SPS = SampleParamsWrapper.load_samples(samples_id, samples_file_name)
+    print(SPS.model_params)
 
-    a = np.array([2, 4, 5, 0.5, -0.95, -1.25])
-    print(soft_thresholding_prox_operator(a, 1))
+    # a = np.array([2, 4, 5, 0.5, -0.95, -1.25])
+    # print(soft_thresholding_prox_operator(a, 1))
 
 
 
