@@ -1,5 +1,5 @@
 import numpy as np
-from mpgm.mpgm.models.model import Model
+from mpgm.mpgm.models.Model import Model
 from scipy.special import gammaln, logsumexp
 from typing import Tuple, Optional
 
@@ -73,10 +73,10 @@ class TPGM(Model):
 
         return ll
 
-    def calculate_grad_ll_datapoint(self, node:int, datapoint:np.ndarray, theta_curr:np.ndarray) -> np.ndarray:
+    def calculate_grad_ll_datapoint(self, node:int, datapoint:np.ndarray, node_theta_curr:np.ndarray) -> np.ndarray:
         grad = np.zeros(datapoint.shape)
 
-        dot_product = np.dot(datapoint, theta_curr) - theta_curr[node] * datapoint[node] + theta_curr[node]
+        dot_product = np.dot(datapoint, node_theta_curr) - node_theta_curr[node] * datapoint[node] + node_theta_curr[node]
 
         exponents_numerator = []
         exponents_denominator = []

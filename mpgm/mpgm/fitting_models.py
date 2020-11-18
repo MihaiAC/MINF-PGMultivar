@@ -1,8 +1,11 @@
 from mpgm.mpgm.model_fitters.prox_grad_fitters import *
-from mpgm.mpgm.models.model import *
 from mpgm.mpgm.generating_samples import SampleParamsSave, SampleParamsWrapper
 from sqlitedict import SqliteDict
 from typing import Optional
+
+from mpgm.mpgm.models import Model
+from mpgm.mpgm.models.TPGM import TPGM
+from mpgm.mpgm.models.Model import Model
 
 class FitParamsSave():
     def __init__(self):
@@ -98,18 +101,32 @@ class FitParamsWrapper():
         self._fitter = value
         self.FPS.fitter = (type(value).__name__, vars(value))
 
-    def fit_model_and_save(self, fit_id:str, fit_file_name:str,
+    def fit_model_and_save(self, fit_id:str, fit_file_name:str, parallelize:Optional[bool]=True,
                            samples_file_name:Optional[str]=None, samples_id:Optional[str]=None,
                            theta_init:Optional[np.ndarray]=None):
+        if samples_file_name is not None:
+            self.FPS.samples_file_name = samples_file_name
 
-        SPS = SampleParamsWrapper.load_samples(samples_id, samples_file_name)
+        if samples_id is not None:
+            self.FPS.samples_id = samples_id
+
+        SPS = SampleParamsWrapper.load_samples(self.FPS.samples_id, self.FPS.samples_file_name)
         samples = SPS.samples
+
+        if theta_init is None or self.FPS.theta_init is None:
+            nr_variables = samples.shape[1]
+            self.FPS.theta_init = np.random.normal(-0.03, 0.001, (nr_variables, nr_variables))
+            print(self.FPS.theta_init)
+        else:
+            assert samples.shape[1] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
+                   "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
+            self.FPS.theta_init = theta_init
 
         theta_final, likelihoods, converged, conditions = self.fitter.call_fit_node(nll=self.model.calculate_nll,
                                                                                     grad_nll=self.model.calculate_grad_nll,
                                                                                     data_points=samples,
-                                                                                    theta_init=theta_init,
-                                                                                    parallelize=True)
+                                                                                    theta_init=self.FPS.theta_init,
+                                                                                    parallelize=parallelize)
         self.FPS.theta_final = theta_final
         self.FPS.likelihoods = likelihoods
         self.FPS.converged = converged
@@ -125,3 +142,23 @@ class FitParamsWrapper():
         FPS = fits_dict[fit_id]
         fits_dict.close()
         return FPS
+
+if __name__ == "__main__":
+    samples_file_name = "samples.sqlite"
+    samples_id = "PleaseWork"
+
+    fit_id = "debugProxGrad"
+    fit_file_name = "fit_models.sqlite"
+
+    FPW = FitParamsWrapper(random_seed=2,
+                           samples_file_name=samples_file_name,
+                           samples_id=samples_id)
+
+    FPW.model = TPGM(R=10)
+    FPW.fitter = Prox_Grad_Fitter(alpha=0.01)
+    FPW.fit_model_and_save(fit_id=fit_id,
+                           fit_file_name=fit_file_name,
+                           parallelize=False)
+
+    FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
+    print(FPS.theta_final)

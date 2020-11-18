@@ -167,5 +167,6 @@ if __name__ == "__main__":
     SGW.sampler = TPGMGibbsSampler(burn_in = 20,
                                    thinning_nr = 10)
 
-    #print(SGW.generate_samples_and_save("PleaseWork", sqlite_file_name))
+    # print(SGW.generate_samples_and_save("PleaseWork", sqlite_file_name))
     SPS = SampleParamsWrapper.load_samples("PleaseWork", sqlite_file_name)
+    print(SPS.samples)

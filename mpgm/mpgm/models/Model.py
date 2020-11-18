@@ -39,7 +39,7 @@ class Model():
         grad_nll = np.zeros((len(theta_curr), ))
 
         for ii in range(N):
-            grad_nll_ii = self.calculate_grad_nll(node, data, theta_curr)
+            grad_nll_ii = self.calculate_grad_ll_datapoint(node, data[ii, :], theta_curr)
             grad_nll += grad_nll_ii
 
         grad_nll = grad_nll/N
@@ -52,7 +52,7 @@ class Model():
         nll = 0
 
         for ii in range(N):
-            nll += -self.calculate_ll_datapoint(node, data[ii, :], theta_curr)[0]
+            nll += -self.calculate_ll_datapoint(node, data[ii, :], theta_curr)
 
         nll = nll/N
 

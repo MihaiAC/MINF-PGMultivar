@@ -1,6 +1,6 @@
 import numpy as np
 from mpgm.mpgm.models.TPGM import TPGM
-from mpgm.mpgm.models.model import Model
+from mpgm.mpgm.models.Model import Model
 from tqdm import trange
 
 class GibbsSampler():

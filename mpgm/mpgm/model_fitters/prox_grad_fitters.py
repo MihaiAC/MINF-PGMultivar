@@ -5,7 +5,7 @@ from typing import Callable, Optional, Iterator, Any, Tuple, List
 class Prox_Grad_Fitter():
     def __init__(self, alpha, accelerated=True, max_iter=5000, max_line_search_iter=50,
                  line_search_rel_tol=1e-4, init_step_size=1.0, beta=0.5, rel_tol=1e-3,
-                 abs_tol=1e-6, early_stop_criterion='weight'):
+                 abs_tol=1e-6, early_stop_criterion='weight', minimum_iterations_until_early_stop=5):
         """
         Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
             package.
@@ -32,6 +32,8 @@ class Prox_Grad_Fitter():
         self.rel_tol = rel_tol
         self.abs_tol = abs_tol
         self.early_stop_criterion = early_stop_criterion
+        self.minimum_iterations_until_early_stop = minimum_iterations_until_early_stop
+        assert minimum_iterations_until_early_stop > 0, "At least one iteration must pass until convergence is checked."
 
     # Prox operators -> perhaps make them a class of their own if needed.
     # For now, it's not necessary, since we have been using only soft thresholding
@@ -39,9 +41,9 @@ class Prox_Grad_Fitter():
     @staticmethod
     def soft_thresholding_prox_operator(x, threshold):
         x_plus = x - threshold
-        x_minus = x - threshold
+        x_minus = x + threshold
 
-        return x_plus * (x_plus > 0) - x_minus * (x_minus > 0)
+        return x_plus * (x_plus > 0) + x_minus * (x_minus < 0)
 
     def update_fit_params(self, iteration, prev_params, penultimate_params):
         if self.accelerated:
@@ -58,15 +60,15 @@ class Prox_Grad_Fitter():
         return f_z <= f_tilde or np.isclose(f_z, f_tilde, rtol=self.line_search_rel_tol)
 
     def fit_node_parameter_generator(self, nr_nodes:int, nll:Callable[[int, np.ndarray, np.ndarray], float],
-                      grad_nll:Callable[[int, np.array, np.array], np.array],
-                      data_points:np.array, theta_init:np.array) -> Iterator[Any]:
+                      grad_nll:Callable[[int, np.ndarray, np.ndarray], np.ndarray],
+                      data_points:np.ndarray, theta_init:np.ndarray) -> Iterator[Any]:
         for node in range(nr_nodes):
             yield (node, nll, grad_nll, data_points, theta_init)
 
-    def call_fit_node(self, nll:Callable[[int, np.array, np.array], float],
-                      grad_nll:Callable[[int, np.array, np.array], np.array],
-                      data_points:np.array,
-                      theta_init:np.array,
+    def call_fit_node(self, nll:Callable[[int, np.ndarray, np.ndarray], float],
+                      grad_nll:Callable[[int, np.ndarray, np.ndarray], np.ndarray],
+                      data_points:np.ndarray,
+                      theta_init:np.ndarray,
                       parallelize:Optional[bool]=True) -> Tuple[np.ndarray, List[np.ndarray], List[bool], List[Any]]:
 
         nr_nodes = data_points.shape[1]
@@ -76,7 +78,7 @@ class Prox_Grad_Fitter():
         conditions = []
 
         if parallelize == False:
-            for node in nr_nodes:
+            for node in range(nr_nodes):
                 theta_fit_node, likelihoods_node, converged_node, conditions_node = \
                     self.fit_node(node, nll, grad_nll, data_points, theta_init)
                 theta_fit[node, :] = theta_fit_node
@@ -87,7 +89,7 @@ class Prox_Grad_Fitter():
         else:
             nr_cpus = multiprocessing.cpu_count()
             with multiprocessing.Pool(processes=nr_cpus-1) as pool:
-                results = pool.starmap(self.fit_node, self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
+                results = pool.imap(self.fit_node, self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
             for node, node_result in enumerate(results):
                 theta_fit[node, :] = node_result[0]
                 likelihoods.append(node_result[1])
@@ -95,6 +97,22 @@ class Prox_Grad_Fitter():
                 conditions.append(conditions[3])
 
         return (theta_fit, likelihoods, converged, conditions)
+
+    def check_params_convergence(self, iteration_nr, theta_k_1, theta_k_2):
+        if iteration_nr < self.minimum_iterations_until_early_stop:
+            return False
+        converged_params = (theta_k_1 - theta_k_2) ** 2 <= (self.rel_tol ** 2) * (theta_k_1 ** 2)
+        converged = all(converged_params)
+        return converged
+
+    def check_likelihood_convergence(self, iteration_nr, neg_log_likelihoods):
+        if iteration_nr < self.minimum_iterations_until_early_stop:
+            return False
+
+        current_nll = neg_log_likelihoods[iteration_nr]
+        prev_nll = neg_log_likelihoods[iteration_nr-1]
+        converged = current_nll > prev_nll or np.isclose(current_nll, prev_nll, self.rel_tol, self.abs_tol)
+        return converged
 
     def fit_node(self, node, nll, grad_nll, data_points, theta_init):
         """
@@ -108,19 +126,19 @@ class Prox_Grad_Fitter():
         bool which indicated if the method converged, not sure what this was)
         """
 
-        likelihoods = []
+        neg_log_likelihoods = []
         conditions = []
         converged = False
 
         theta_node_init = theta_init[node, :]
-        theta_k_2 = np.array(theta_node_init)
-        theta_k_1 = np.array(theta_node_init)
+        theta_k_2 = np.zeros(theta_node_init.shape)
+        theta_k_1 = np.copy(theta_node_init)
         step_size_k = self.init_step_size
 
         z = np.zeros(np.size(theta_node_init))
         f_z = 0
 
-        for k in range(1, self.max_iter+1):
+        for k in range(self.max_iter):
             theta_k = self.update_fit_params(k, theta_k_1, theta_k_2)
             f_theta_k = nll(node, data_points, theta_k)
             grad_f_theta_k = grad_nll(node, data_points, theta_k)
@@ -144,27 +162,27 @@ class Prox_Grad_Fitter():
             if found_step_size:
                 theta_k_2 = theta_k_1
                 theta_k_1 = z
+                neg_log_likelihoods.append(f_z)
 
-                likelihoods.append(f_z)
-
-                # Model-specific condition checking? Not sure.
-
+                converged = False
                 if self.early_stop_criterion == 'weight':
-                    converged_params = (theta_k_1 - theta_k_2) ** 2 <= (self.rel_tol ** 2) * (theta_k_1 ** 2)
-                    if all(converged_params):
-                        converged = True
-                        print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
-                        break
-
+                    converged = self.check_params_convergence(k, theta_k_1, theta_k_2)
                 elif self.early_stop_criterion == 'likelihood':
-                    if (k > 3 and (f_z > likelihoods[k-2] or np.isclose(f_z, likelihoods[k-2], self.rel_tol, self.abs_tol))):
-                        converged = True
-                        print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
-                        break
+                    converged = self.check_likelihood_convergence(k, neg_log_likelihoods)
+
+                if converged:
+                    print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+
+                    # In this case, last parameters and likelihood were not the best.
+                    if self.early_stop_criterion == "likelihood":
+                        theta_k_1 = theta_k_2
+                        neg_log_likelihoods = neg_log_likelihoods[:-1]
+
+                    break
 
             else:
                 converged = False
                 print('\nProx grad failed to converge for node ' + str(node))
                 break
 
-        return theta_k_1, np.array(likelihoods), converged, np.array(conditions)
+        return theta_k_1, np.array(neg_log_likelihoods), converged, np.array(conditions)
