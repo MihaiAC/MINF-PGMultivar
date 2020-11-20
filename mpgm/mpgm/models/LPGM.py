@@ -3,6 +3,7 @@ from multiprocessing import Pool
 from mpgm.mpgm.models.Model import Model
 
 class LPGM(Model):
+    # TODO: needs to have a theta, even if empty.
     def __init__(self, lpgm_m, lpgm_B, lpgm_beta, nr_alphas, seeds):
         self.lpgm_m = lpgm_m
         self.lpgm_B = lpgm_B
