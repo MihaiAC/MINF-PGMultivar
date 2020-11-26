@@ -3,7 +3,6 @@ from mpgm.mpgm.generating_samples import SampleParamsSave, SampleParamsWrapper
 from sqlitedict import SqliteDict
 from typing import Optional
 
-from mpgm.mpgm.models import Model
 from mpgm.mpgm.models.TPGM import TPGM
 from mpgm.mpgm.models.Model import Model
 
@@ -135,6 +134,8 @@ class FitParamsWrapper():
         fits_dict = SqliteDict('./' + fit_file_name, autocommit=True)
         fits_dict[fit_id] = self.FPS
         fits_dict.close()
+
+        return theta_final
 
     @staticmethod
     def load_fit(fit_id:str, sqlite_file_name:str) -> FitParamsSave:
