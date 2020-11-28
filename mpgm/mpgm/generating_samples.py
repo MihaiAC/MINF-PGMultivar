@@ -73,7 +73,7 @@ class SampleParamsWrapper():
         self.SPS.nr_variables = value
 
     @property
-    def nr_samples(self):
+    def nr_samples(self) -> int:
         return self.SPS.nr_samples
 
     @nr_samples.setter

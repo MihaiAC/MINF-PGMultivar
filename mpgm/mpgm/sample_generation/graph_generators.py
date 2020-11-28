@@ -63,7 +63,7 @@ class LatticeGraphGenerator(GraphGenerator):
 
     def generate_graph(self, nr_variables):
         nr_variables_divisors = LatticeGraphGenerator._calculate_divisors(nr_variables)
-        start_index = LatticeGraphGenerator._calculate_start_index()
+        start_index = LatticeGraphGenerator._calculate_start_index(nr_variables_divisors)
 
         for ii in range(self.sparsity_level):
             start_index = start_index - 1

@@ -3,6 +3,7 @@ from mpgm.mpgm.fitting_models import FitParamsSave, FitParamsWrapper
 
 import numpy as np
 from scipy.stats import norm
+from math import ceil
 
 from mpgm.mpgm.models.Model import Model
 from mpgm.mpgm.models.TPGM import TPGM
@@ -108,6 +109,20 @@ def calculate_param_sparsity(matrix:np.ndarray) -> float:
                 zero_params += 1
 
     return 100 * zero_params / total_params
+
+def get_average_degree(graph:np.ndarray) -> float:
+    nr_variables = graph.shape[0]
+    avg_degree = 0
+    for ii in range(nr_variables):
+        for jj in range(nr_variables):
+            if graph[ii][jj] != 0:
+                avg_degree += 1
+    return avg_degree / nr_variables
+
+def get_min_nr_edges(graph:np.ndarray, ct:float=1) -> int:
+    d = get_average_degree(graph)
+    p = graph.shape[0]
+    return ceil(ct * np.log(p) * d ** 2)
 
 if __name__ == "__main__":
     sqlite_file_name = "samples.sqlite"
