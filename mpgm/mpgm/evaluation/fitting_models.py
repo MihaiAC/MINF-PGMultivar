@@ -1,5 +1,5 @@
 from mpgm.mpgm.model_fitters.prox_grad_fitters import *
-from mpgm.mpgm.generating_samples import SampleParamsSave, SampleParamsWrapper
+from mpgm.mpgm.evaluation.generating_samples import SampleParamsWrapper
 from sqlitedict import SqliteDict
 from typing import Optional
 

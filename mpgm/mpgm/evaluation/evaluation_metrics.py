@@ -1,16 +1,10 @@
-from mpgm.mpgm.generating_samples import SampleParamsSave, SampleParamsWrapper
-from mpgm.mpgm.fitting_models import FitParamsSave, FitParamsWrapper
+from mpgm.mpgm.evaluation.generating_samples import SampleParamsWrapper
+from mpgm.mpgm.evaluation.fitting_models import FitParamsWrapper
 
-import numpy as np
 from scipy.stats import norm
 from math import ceil
 
-from mpgm.mpgm.models.Model import Model
-from mpgm.mpgm.models.TPGM import TPGM
-from mpgm.mpgm.models.QPGM import QPGM
-from mpgm.mpgm.models.SPGM import SPGM
-
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 from mpgm.mpgm.sample_generation.gibbs_samplers import *
 
