@@ -126,6 +126,9 @@ class FitParamsWrapper():
                                                                                     data_points=samples,
                                                                                     theta_init=self.FPS.theta_init,
                                                                                     parallelize=parallelize)
+        self.model.theta = theta_final
+        self.model = self.model # Update FPS' model.
+
         self.FPS.theta_final = theta_final
         self.FPS.likelihoods = likelihoods
         self.FPS.converged = converged
