@@ -1,6 +1,7 @@
 from mpgm.mpgm.model_fitters.prox_grad_fitters import Prox_Grad_Fitter
 
 from mpgm.mpgm.evaluation.evaluation_metrics import *
+from typing import List
 
 
 def get_sample_name(experiment_name:str, batch_nr:int, sample_nr:int) -> str:
@@ -31,7 +32,8 @@ def vary_nr_samples_and_generate_samples(SPW:SampleParamsWrapper, experiment_nam
 
 
 def fit_all_batches_all_samples(FPW:FitParamsWrapper, fit_file_name:str, experiment_name:str, samples_per_batch:int,
-                                nr_batches:int, theta_init:np.ndarray):
+                                nr_batches:int, theta_init:Optional[np.ndarray]=None):
+
     for batch_nr in range(nr_batches):
         for sample_nr in range(samples_per_batch):
             sample_name = get_sample_name(experiment_name, batch_nr, sample_nr)
@@ -42,6 +44,10 @@ def fit_all_batches_all_samples(FPW:FitParamsWrapper, fit_file_name:str, experim
 
 experiment_name = "lattice_same_neg_weight_vary_nr_samples"
 samples_file_name = "samples.sqlite"
+fit_file_name = "fit_models.sqlite"
+samples_per_batch = 5
+samples_numbers = [10, 30, 100, 300, 600]
+nr_batches = len(samples_numbers)
 # SGW = SampleParamsWrapper(nr_variables=20, nr_samples=10, random_seed=0, sample_init=np.zeros((20, )))
 #
 # SGW.graph_generator = LatticeGraphGenerator(sparsity_level=0)
@@ -50,8 +56,7 @@ samples_file_name = "samples.sqlite"
 # SGW.sampler = TPGMGibbsSampler(burn_in = 200,
 #                                thinning_nr = 50)
 
-# samples_per_batch = 5
-# samples_numbers = [10, 30, 100, 300, 600]
+#
 # vary_nr_samples_and_generate_samples(SGW, experiment_name, samples_per_batch, samples_file_name, samples_numbers)
 
 
@@ -60,6 +65,5 @@ FPW = FitParamsWrapper(random_seed=2,
 
 FPW.model = TPGM(R=10)
 FPW.fitter = Prox_Grad_Fitter(alpha=0.3, early_stop_criterion='likelihood')
-FPW.fit_model_and_save(fit_id=fit_id, fit_file_name=fit_file_name, parallelize=False)
 
-FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
+fit_all_batches_all_samples(FPW, fit_file_name, experiment_name, samples_per_batch, nr_batches, )

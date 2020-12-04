@@ -51,6 +51,12 @@ class SampleParamsSave():
     def sampler_params(self):
         return self.sampler[1]
 
+    def get_model(self):
+        model_name = self.model[0]
+        model_params = self.model[1]
+
+
+
 class SampleParamsWrapper():
     def __init__(self, nr_variables:int, nr_samples:int, random_seed:int, sample_init:np.array):
         self.SPS = SampleParamsSave()
@@ -157,16 +163,17 @@ if __name__ == "__main__":
     sqlite_file_name = "samples.sqlite"
 
     SGW = SampleParamsWrapper(nr_variables=4,
-                              nr_samples=10,
+                              nr_samples=50,
                               random_seed=0,
                               sample_init=np.zeros((4, )))
 
     SGW.graph_generator = HubGraphGenerator(nr_hubs=1)
     SGW.weight_assigner = Bimodal_Distr_Weight_Assigner(threshold=0.9)
     SGW.model = TPGM(R=10)
-    SGW.sampler = TPGMGibbsSampler(burn_in = 20,
-                                   thinning_nr = 10)
+    SGW.sampler = TPGMGibbsSampler(burn_in = 200,
+                                   thinning_nr = 300)
 
-    # print(SGW.generate_samples_and_save("PleaseWork", sqlite_file_name))
+    SGW.generate_samples_and_save("PleaseWork", sqlite_file_name)
     SPS = SampleParamsWrapper.load_samples("PleaseWork", sqlite_file_name)
+    print(SPS.model)
     print(SPS.samples)

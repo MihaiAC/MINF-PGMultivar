@@ -1,5 +1,5 @@
 from mpgm.mpgm.model_fitters.prox_grad_fitters import *
-from mpgm.mpgm.evaluation.generating_samples import SampleParamsWrapper
+from mpgm.mpgm.evaluation.generating_samples import SampleParamsWrapper, SampleParamsSave
 from sqlitedict import SqliteDict
 from typing import Optional
 
@@ -111,10 +111,11 @@ class FitParamsWrapper():
 
         SPS = SampleParamsWrapper.load_samples(self.FPS.samples_id, self.FPS.samples_file_name)
         samples = SPS.samples
+        print(SPS.model_params)
 
         if theta_init is None or self.FPS.theta_init is None:
             nr_variables = samples.shape[1]
-            self.FPS.theta_init = np.random.normal(-0.03, 0.001, (nr_variables, nr_variables))
+            self.FPS.theta_init = np.random.normal(0, 0.001, (nr_variables, nr_variables))
             print(self.FPS.theta_init)
         else:
             assert samples.shape[1] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
@@ -159,10 +160,10 @@ if __name__ == "__main__":
                            samples_id=samples_id)
 
     FPW.model = TPGM(R=10)
-    FPW.fitter = Prox_Grad_Fitter(alpha=0.3)
-    FPW.fit_model_and_save(fit_id=fit_id,
-                           fit_file_name=fit_file_name,
-                           parallelize=False)
+    FPW.fitter = Prox_Grad_Fitter(alpha=0.3, early_stop_criterion='weight')
+    theta_final = FPW.fit_model_and_save(fit_id=fit_id,
+                                        fit_file_name=fit_file_name,
+                                        parallelize=False)
 
-    FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
-    print(FPS.theta_final)
+    # FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
+    print(theta_final)

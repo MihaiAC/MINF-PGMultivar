@@ -5,7 +5,7 @@ from typing import Callable, Optional, Iterator, Any, Tuple, List
 class Prox_Grad_Fitter():
     def __init__(self, alpha, accelerated=True, max_iter=5000, max_line_search_iter=50,
                  line_search_rel_tol=1e-4, init_step_size=1.0, beta=0.5, rel_tol=1e-3,
-                 abs_tol=1e-6, early_stop_criterion='weight', minimum_iterations_until_early_stop=5):
+                 abs_tol=1e-6, early_stop_criterion='weight', minimum_iterations_until_early_stop=1):
         """
         Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
             package.
@@ -89,12 +89,16 @@ class Prox_Grad_Fitter():
         else:
             nr_cpus = multiprocessing.cpu_count()
             with multiprocessing.Pool(processes=nr_cpus-1) as pool:
-                results = pool.imap(self.fit_node, self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
+                results = pool.starmap(self.fit_node, self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
+                # args = list(self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
+                # for ii in range(5):
+                #     for elem in args:
+                #         print(elem[ii])
             for node, node_result in enumerate(results):
                 theta_fit[node, :] = node_result[0]
                 likelihoods.append(node_result[1])
                 converged.append(node_result[2])
-                conditions.append(conditions[3])
+                conditions.append(node_result[3])
 
         return (theta_fit, likelihoods, converged, conditions)
 
