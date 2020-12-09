@@ -118,12 +118,12 @@ class Prox_Grad_Fitter():
         converged = current_nll > prev_nll or np.isclose(current_nll, prev_nll, self.rel_tol, self.abs_tol)
         return converged
 
-    def fit_node(self, node, nll, grad_nll, data_points, theta_init):
+    def fit_node(self, node, f_nll, f_grad_nll, data_points, theta_init):
         """
 
         :param node: Index of the node to fit.
-        :param nll: calculates negative ll of node value given the other data_points.
-        :param grad_nll: calculates gradient of negative ll.
+        :param f_nll: calculates negative ll of node value given the other data_points.
+        :param f_grad_nll: calculates gradient of negative ll.
         :param data_points: N x m matrix, N = number of points and m = number of nodes in the graph.
         :param theta_init: m x m matrix; theta_init[node, :] must contain the initial guesses for the parameters fit here.
         :return: (parameters which resulted from the method, list of lists of line search likelihoods,
@@ -144,8 +144,8 @@ class Prox_Grad_Fitter():
 
         for k in range(self.max_iter):
             theta_k = self.update_fit_params(k, theta_k_1, theta_k_2)
-            f_theta_k = nll(node, data_points, theta_k)
-            grad_f_theta_k = grad_nll(node, data_points, theta_k)
+            f_theta_k = f_nll(node, data_points, theta_k)
+            grad_f_theta_k = f_grad_nll(node, data_points, theta_k)
 
             found_step_size = False
 
@@ -155,7 +155,7 @@ class Prox_Grad_Fitter():
                 z = Prox_Grad_Fitter.soft_thresholding_prox_operator(candidate_new_theta_k, threshold)
 
                 f_tilde = f_theta_k + np.dot(grad_f_theta_k, z-theta_k) + (1/(2 * step_size_k)) * np.sum((z-theta_k) ** 2)
-                f_z = nll(node, data_points, z)
+                f_z = f_nll(node, data_points, z)
 
                 if self.check_line_search_condition_simple(f_z, f_tilde):
                     found_step_size = True

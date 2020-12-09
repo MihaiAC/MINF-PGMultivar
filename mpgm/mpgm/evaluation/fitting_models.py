@@ -160,10 +160,10 @@ if __name__ == "__main__":
                            samples_id=samples_id)
 
     FPW.model = TPGM(R=10)
-    FPW.fitter = Prox_Grad_Fitter(alpha=0.3, early_stop_criterion='weight')
+    FPW.fitter = Prox_Grad_Fitter(alpha=0.065, early_stop_criterion='likelihood')
     theta_final = FPW.fit_model_and_save(fit_id=fit_id,
                                         fit_file_name=fit_file_name,
-                                        parallelize=False)
+                                        parallelize=True)
 
     # FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
     print(theta_final)

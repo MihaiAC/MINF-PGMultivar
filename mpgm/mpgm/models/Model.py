@@ -39,8 +39,8 @@ class Model():
         grad_nll = np.zeros((len(theta_curr), ))
 
         for ii in range(N):
-            grad_nll_ii = self.calculate_grad_ll_datapoint(node, data[ii, :], theta_curr)
-            grad_nll += (-1) * grad_nll_ii
+            grad_nll_ii = (-1) * self.calculate_grad_ll_datapoint(node, data[ii, :], theta_curr)
+            grad_nll += grad_nll_ii
 
         grad_nll = grad_nll/N
 
