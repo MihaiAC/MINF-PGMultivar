@@ -5,10 +5,10 @@ from scipy.stats import norm
 from math import ceil
 
 from typing import Optional, Tuple
+from enum import Enum
 
 from mpgm.mpgm.sample_generation.gibbs_samplers import *
 
-# TODO: need to symmetrise theta_fit.
 class EvalFns():
 
     @staticmethod
@@ -54,19 +54,57 @@ class EvalFns():
 
         return kl_div_nodes, mse_nodes
 
-    # TODO: Need to account for the rule used (AND, OR).
-    @staticmethod
-    def calculate_tpr_fpr_acc(theta_orig:np.ndarray, theta_fit:np.ndarray, threshold:Optional[float]=1e-3):
-        nr_variables = theta_orig.shape[0]
+    class SymmModes(Enum):
+        WW_MIN = "ww_min"
+        WW_MAX = "ww_max"
+        NONE = "none"
 
-        TN = 0
-        TP = 0
-        FP = 0
-        FN = 0
+    @staticmethod
+    def copy_and_symmetrize_matrix(matrix:np.ndarray, symm_mode:SymmModes) -> np.ndarray:
+        symm_matrix = np.copy(matrix)
+        nr_variables = symm_matrix.shape[0]
+
+        if symm_mode == EvalFns.SymmModes.NONE:
+            return symm_matrix
+
         for ii in range(1, nr_variables):
-            for kk in range(ii):
+            for jj in range(ii):
+                val_1 = matrix[ii][jj]
+                val_2 = matrix[jj][ii]
+                is_smaller = np.abs(val_1) < np.abs(val_2)
+
+                if symm_mode == EvalFns.SymmModes.WW_MAX:
+                    if is_smaller:
+                        symm_matrix[ii][jj] = val_2
+                        symm_matrix[jj][ii] = val_2
+                    else:
+                        symm_matrix[ii][jj] = val_1
+                        symm_matrix[jj][ii] = val_1
+                elif symm_mode == EvalFns.SymmModes.WW_MIN:
+                    if is_smaller:
+                        symm_matrix[ii][jj] = val_1
+                        symm_matrix[jj][ii] = val_1
+                    else:
+                        symm_matrix[ii][jj] = val_2
+                        symm_matrix[jj][ii] = val_2
+
+        return symm_matrix
+
+
+    @staticmethod
+    def calculate_tpr_fpr_acc_nonzero(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes,
+                                      threshold:Optional[float]=1e-6) -> Tuple[float, float, float]:
+        nr_variables = theta_orig.shape[0]
+        symm_theta_fit = EvalFns.copy_and_symmetrize_matrix(theta_fit, symm_mode)
+
+        TN, TP, FP, FN = 0, 0, 0, 0
+        for ii in range(nr_variables):
+            for kk in range(nr_variables):
+                if ii == kk:
+                    continue
+
                 real_edge = theta_orig[ii][kk] != 0
-                inferred_edge = abs(theta_fit[ii][kk]) >= threshold or abs(theta_fit[kk][ii]) >= threshold
+                inferred_edge = np.abs(symm_theta_fit[ii][kk]) <= threshold
 
                 if real_edge and inferred_edge:
                     TP += 1
@@ -82,7 +120,71 @@ class EvalFns():
         return TPR, FPR, ACC
 
     @staticmethod
-    def calculate_percentage_symmetric_values(matrix:np.ndarray, threshold:Optional[float]=1e-3) -> float:
+    def calculate_signed_recall(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes,
+                                threshold:Optional[float]=1e-6) -> float:
+        nr_variables = theta_orig.shape[0]
+        symm_theta_fit = EvalFns.copy_and_symmetrize_matrix(theta_fit, symm_mode)
+        signed_TP = 0
+        true_edges = 0
+
+        for ii in range(nr_variables):
+            for kk in range(nr_variables):
+                if ii == kk:
+                    continue
+
+                real_edge_sign = np.sign(theta_orig[ii][kk])
+                if real_edge_sign != 0:
+                    true_edges += 1
+
+                if symm_theta_fit[ii][kk] <= threshold:
+                    inferred_edge_sign = 0
+                else:
+                    inferred_edge_sign = np.sign(symm_theta_fit[ii][kk])
+
+                if inferred_edge_sign != 0 and inferred_edge_sign == real_edge_sign:
+                    signed_TP += 1
+
+        return signed_TP/true_edges
+
+    @staticmethod
+    def calculate_MSEs(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes) -> Tuple[float, float]:
+        nr_variables = theta_orig.shape[0]
+        symm_theta_fit = EvalFns.copy_and_symmetrize_matrix(theta_fit, symm_mode)
+
+        MSE, diag_MSE = 0, 0
+        N, diag_N = 0, 0
+
+        for ii in range(nr_variables):
+            for kk in range(nr_variables):
+                real_value = theta_orig[ii][kk]
+                inferred_value = symm_theta_fit[ii][kk]
+
+                if ii == kk:
+                    diag_N += 1
+                    diag_MSE += (real_value - inferred_value) ** 2
+                else:
+                    N += 1
+                    MSE += (real_value - inferred_value) ** 2
+
+        return MSE/N, diag_MSE/diag_N
+
+    @staticmethod
+    def calculate_percentage_symmetric_signs(matrix:np.ndarray) -> float:
+        N, M = matrix.shape
+        assert N == M, str("calculate_percentage_symmetric_signs: input matrix should be square; has dimensions " +
+                           str((N,M)) + " instead")
+
+        nr_values = N * (N-1) / 2
+        nr_symmetric_signs = 0
+
+        for ii in range(1, len(matrix)):
+            for jj in range(ii):
+                if np.sign(matrix[ii][jj]) == np.sign(matrix[jj][ii]):
+                    nr_symmetric_signs += 1
+        return nr_symmetric_signs/nr_values
+
+    @staticmethod
+    def calculate_percentage_symmetric_values(matrix:np.ndarray, threshold:Optional[float]=1e-6) -> float:
         N, M = matrix.shape
         assert N == M, str("calculate_percentage_symmetric_values: input matrix should be square; has dimensions " +
                            str((N,M)) + " instead")
@@ -97,9 +199,9 @@ class EvalFns():
         return nr_symmetric_values/nr_values
 
     @staticmethod
-    def calculate_percentage_symmetric_neighbourhood(matrix:np.ndarray, threshold:Optional[float]=1e-6) -> float:
+    def calculate_percentage_symmetric_nonzero(matrix:np.ndarray, threshold:Optional[float]=0) -> float:
         N, M = matrix.shape
-        assert N == M, str("calculate_percentage_symmetric_values: input matrix should be square; has dimensions " +
+        assert N == M, str("calculate_percentage_symmetric_nonzero: input matrix should be square; has dimensions " +
                            str((N, M)) + " instead")
 
         nr_values = N * (N-1) / 2
@@ -115,7 +217,7 @@ class EvalFns():
         return nr_symmetric_binary_values/nr_values
 
     @staticmethod
-    def calculate_percentage_sparsity(matrix:np.ndarray, threshold:Optional[float]=1e-6) -> float:
+    def calculate_percentage_sparsity(matrix:np.ndarray, threshold:Optional[float]=0) -> float:
         N, M = matrix.shape
         assert N == M, str("calculate_percentage_symmetric_values: input matrix should be square; has dimensions " +
                            str((N, M)) + " instead")
@@ -142,7 +244,7 @@ class EvalFns():
         return avg_degree / nr_variables
 
     @staticmethod
-    def get_min_nr_edges(graph:np.ndarray, ct:float=1) -> int:
+    def get_min_nr_samples(graph:np.ndarray, ct:float=1) -> int:
         d = EvalFns.get_average_degree(graph)
         p = graph.shape[0]
         return ceil(ct * np.log(p) * d ** 2)
@@ -157,7 +259,7 @@ if __name__ == "__main__":
     FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
 
     model_P = globals()[SPS.model_name](**SPS.model_params)
-    model_Q = globals()[FPS.model_name](R=FPS.model_params['R'], theta=FPS.theta_final)
+    model_Q = globals()[FPS.model_name](theta=FPS.theta_final, **FPS.model_params)
     sampler = TPGMGibbsSampler(60, 90)
 
     # print(node_cond_prob_KL_divergence(model_P, model_Q, sampler))
