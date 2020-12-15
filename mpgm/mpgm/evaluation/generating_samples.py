@@ -16,7 +16,6 @@ class SampleParamsSave():
         self.weight_assigner = (None, None)
         self.model = (None, None)
         self.sampler = (None, None)
-
         self.samples = None
 
     @property
@@ -51,9 +50,17 @@ class SampleParamsSave():
     def sampler_params(self):
         return self.sampler[1]
 
-    def get_model(self):
-        model_name = self.model[0]
+    @property
+    def theta_orig(self) -> np.ndarray:
         model_params = self.model[1]
+        if model_params is None:
+            return None
+        else:
+            return model_params['theta']
+
+    # def get_model(self):
+    #     model_name = self.model[0]
+    #     model_params = self.model[1]
 
 
 

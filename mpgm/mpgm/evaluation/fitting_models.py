@@ -13,7 +13,7 @@ class FitParamsSave():
         self.samples_file_name = None
         self.theta_init = None
 
-        self.theta_final = None
+        self.theta_fit = None
         self.likelihoods = None
         self.converged = None
         self.conditions = None
@@ -45,7 +45,7 @@ class FitParamsWrapper():
         self.FPS.samples_id = samples_id
         self.FPS.samples_file_name = samples_file_name
         self.FPS.theta_init = theta_init
-        self.FPS.theta_final = None
+        self.FPS.theta_fit = None
 
         self._model = None
         self._fitter = None
@@ -130,7 +130,7 @@ class FitParamsWrapper():
         self.model.theta = theta_final
         self.model = self.model # Update FPS' model.
 
-        self.FPS.theta_final = theta_final
+        self.FPS.theta_fit = theta_final
         self.FPS.likelihoods = likelihoods
         self.FPS.converged = converged
         self.FPS.conditions = conditions
@@ -139,6 +139,7 @@ class FitParamsWrapper():
         fits_dict[fit_id] = self.FPS
         fits_dict.close()
 
+        print(theta_final)
         return theta_final
 
     @staticmethod
@@ -166,4 +167,4 @@ if __name__ == "__main__":
                                         parallelize=True)
 
     # FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
-    print(theta_final)
+    # print(theta_fit)

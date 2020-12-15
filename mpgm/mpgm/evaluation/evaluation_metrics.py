@@ -9,7 +9,7 @@ from enum import Enum
 
 from mpgm.mpgm.sample_generation.gibbs_samplers import *
 
-class EvalFns():
+class EvalMetrics():
 
     @staticmethod
     def node_cond_prob_KL_divergence(model_P: Model, model_Q:Model, sampler:GibbsSampler, alpha:Optional[float]=0.05,
@@ -64,7 +64,7 @@ class EvalFns():
         symm_matrix = np.copy(matrix)
         nr_variables = symm_matrix.shape[0]
 
-        if symm_mode == EvalFns.SymmModes.NONE:
+        if symm_mode == EvalMetrics.SymmModes.NONE:
             return symm_matrix
 
         for ii in range(1, nr_variables):
@@ -73,14 +73,14 @@ class EvalFns():
                 val_2 = matrix[jj][ii]
                 is_smaller = np.abs(val_1) < np.abs(val_2)
 
-                if symm_mode == EvalFns.SymmModes.WW_MAX:
+                if symm_mode == EvalMetrics.SymmModes.WW_MAX:
                     if is_smaller:
                         symm_matrix[ii][jj] = val_2
                         symm_matrix[jj][ii] = val_2
                     else:
                         symm_matrix[ii][jj] = val_1
                         symm_matrix[jj][ii] = val_1
-                elif symm_mode == EvalFns.SymmModes.WW_MIN:
+                elif symm_mode == EvalMetrics.SymmModes.WW_MIN:
                     if is_smaller:
                         symm_matrix[ii][jj] = val_1
                         symm_matrix[jj][ii] = val_1
@@ -95,7 +95,7 @@ class EvalFns():
     def calculate_tpr_fpr_acc_nonzero(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes,
                                       threshold:Optional[float]=1e-6) -> Tuple[float, float, float]:
         nr_variables = theta_orig.shape[0]
-        symm_theta_fit = EvalFns.copy_and_symmetrize_matrix(theta_fit, symm_mode)
+        symm_theta_fit = EvalMetrics.copy_and_symmetrize_matrix(theta_fit, symm_mode)
 
         TN, TP, FP, FN = 0, 0, 0, 0
         for ii in range(nr_variables):
@@ -123,7 +123,7 @@ class EvalFns():
     def calculate_signed_recall(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes,
                                 threshold:Optional[float]=1e-6) -> float:
         nr_variables = theta_orig.shape[0]
-        symm_theta_fit = EvalFns.copy_and_symmetrize_matrix(theta_fit, symm_mode)
+        symm_theta_fit = EvalMetrics.copy_and_symmetrize_matrix(theta_fit, symm_mode)
         signed_TP = 0
         true_edges = 0
 
@@ -149,7 +149,7 @@ class EvalFns():
     @staticmethod
     def calculate_MSEs(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes) -> Tuple[float, float]:
         nr_variables = theta_orig.shape[0]
-        symm_theta_fit = EvalFns.copy_and_symmetrize_matrix(theta_fit, symm_mode)
+        symm_theta_fit = EvalMetrics.copy_and_symmetrize_matrix(theta_fit, symm_mode)
 
         MSE, diag_MSE = 0, 0
         N, diag_N = 0, 0
@@ -245,7 +245,7 @@ class EvalFns():
 
     @staticmethod
     def get_min_nr_samples(graph:np.ndarray, ct:float=1) -> int:
-        d = EvalFns.get_average_degree(graph)
+        d = EvalMetrics.get_average_degree(graph)
         p = graph.shape[0]
         return ceil(ct * np.log(p) * d ** 2)
 
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     FPS = FitParamsWrapper.load_fit(fit_id, fit_file_name)
 
     model_P = globals()[SPS.model_name](**SPS.model_params)
-    model_Q = globals()[FPS.model_name](theta=FPS.theta_final, **FPS.model_params)
+    model_Q = globals()[FPS.model_name](theta=FPS.theta_fit, **FPS.model_params)
     sampler = TPGMGibbsSampler(60, 90)
 
     # print(node_cond_prob_KL_divergence(model_P, model_Q, sampler))
