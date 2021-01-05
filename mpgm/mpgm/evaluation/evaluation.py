@@ -17,6 +17,7 @@ from typing import List, Any, Callable
 
 import matplotlib.pyplot as plt
 import os
+from itertools import cycle
 
 # Generates samples and fits models on those samples.
 # Should remember the IDs of the samples it generated and model it fit.
@@ -103,8 +104,8 @@ class StatsGenerator():
         fit_name = self.experiment.get_fit_name(batch_nr, sample_nr)
         FPS = FitParamsWrapper.load_fit(fit_name, self.experiment.fit_file_name)
 
-        model = #TODO: Complete this lmao. Wait you can't? HAHAHH stupid
-
+        model = globals()[FPS.model_name](**FPS.model_params)
+        return model
 
     def get_TPRs_FPRs_ACCs_nonzero(self, symm_mode:EvalMetrics.SymmModes):
         TPRs = []
@@ -204,44 +205,23 @@ class StatsGenerator():
 
         return sparsities, symm_nonzero, symm_signs, symm_values
 
+    def create_experiment_plot_folder(self):
+        if not os.path.exists(self.experiment.experiment_name):
+            os.makedirs(self.experiment.experiment_name)
 
-#TODO: create general plotting function; should allow multiple lines on the same plot;
-    # def generate_stats(self):
-    #     if not os.path.exists(self.experiment_name):
-    #         os.makedirs(self.experiment_name)
-    #
-    #     plt.plot(xs, ACCs, linestyle='--', marker='o')
-    #     plt.xlabel(x_name)
-    #     plt.ylabel('ACCs')
-    #     plt.savefig(self.experiment_name + '/ACC_plot.png', dpi=300, bbox_inches='tight')
-    #     plt.clf()
-    #
-    #     plt.plot(xs, symm_vals, linestyle='--', marker='o')
-    #     plt.xlabel(x_name)
-    #     plt.ylabel('percentage_symm_vals')
-    #     plt.savefig(self.experiment_name + '/symm_vals.png', dpi=300, bbox_inches='tight')
-    #     plt.clf()
-    #
-    #     plt.plot(xs, symm_vals, linestyle='--', marker='o')
-    #     plt.xlabel(x_name)
-    #     plt.ylabel('percentage_symm_neighbourhoods')
-    #     plt.savefig(self.experiment_name + '/symm_neighbourhoods.png', dpi=300, bbox_inches='tight')
-    #     plt.clf()
-    #
-    #     plt.plot(xs, symm_vals, linestyle='--', marker='o')
-    #     plt.xlabel(x_name)
-    #     plt.ylabel('sparsities')
-    #     plt.savefig(self.experiment_name + '/sparsities.png', dpi=300, bbox_inches='tight')
-    #     plt.clf()
-    #
-    #     # for ii in range(len(node_KL_divergences[0])):
-    #     #     KL_divs = []
-    #     #     for jj in range(nr_batches):
-    #     #         KL_divs.append(node_KL_divergences[jj][ii])
-    #     #     plt.plot(xs, KL_divs, linestyle='--', marker='o', label='Node ' + str(ii))
-    #     # plt.xlabel('nr_samples')
-    #     # plt.ylabel('node KL divergence')
-    #     # plt.legend()
-    #     # plt.savefig(self.experiment_name + '/KLdiv_plot.png', dpi=300, bbox_inches='tight')
-    #
-    #     return TPRs, FPRs, ACCs, symm_vals, symm_neighbourhoods, sparsities, min_nr_samples, node_KL_divergences
+    def plot_ys_common_xs(self, plot_name:str, x_name:str, y_name:str, xs:List[Any], list_ys:List[List[Any]],
+                          labels:List[str]):
+        self.create_experiment_plot_folder()
+
+        marker = cycle(('o', '^', 's', 'X', '*'))
+        for ii, ys in enumerate(list_ys):
+            plt.plot(xs, ys, linestyle='--', marker=next(marker), label=labels[ii])
+
+        plt.title(plot_name)
+        plt.xlabel(x_name)
+        plt.ylabel(y_name)
+        plt.legend()
+        plt.savefig(self.experiment.experiment_name + '/' + plot_name + '.png')
+
+        print('Plotting ' + plot_name + ' finished!')
+

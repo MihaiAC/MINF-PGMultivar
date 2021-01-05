@@ -111,12 +111,10 @@ class FitParamsWrapper():
 
         SPS = SampleParamsWrapper.load_samples(self.FPS.samples_id, self.FPS.samples_file_name)
         samples = SPS.samples
-        print(SPS.model_params)
 
         if theta_init is None or self.FPS.theta_init is None:
             nr_variables = samples.shape[1]
             self.FPS.theta_init = np.random.normal(0, 0.001, (nr_variables, nr_variables))
-            print(self.FPS.theta_init)
         else:
             assert samples.shape[1] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
                    "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
@@ -139,7 +137,6 @@ class FitParamsWrapper():
         fits_dict[fit_id] = self.FPS
         fits_dict.close()
 
-        print(theta_final)
         return theta_final
 
     @staticmethod
