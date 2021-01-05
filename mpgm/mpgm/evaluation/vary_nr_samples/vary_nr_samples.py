@@ -1,7 +1,7 @@
 from mpgm.mpgm.model_fitters.prox_grad_fitters import Prox_Grad_Fitter
 from mpgm.mpgm.evaluation.evaluation_metrics import *
 
-from mpgm.mpgm.sample_generation.gibbs_samplers import *
+from mpgm.mpgm.sample_generation.samplers import *
 from mpgm.mpgm.sample_generation.graph_generators import *
 from mpgm.mpgm.sample_generation.weight_assigners import *
 

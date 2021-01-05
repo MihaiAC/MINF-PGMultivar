@@ -29,4 +29,12 @@ class Bimodal_Distr_Weight_Assigner(Weight_Assigner):
                     graph[ii][jj] = weight
                     graph[jj][ii] = weight
 
+class Dummy_Weight_Assigner(Weight_Assigner):
+    """
+    Leaves the graph as is; used for compatibility reasons.
+    """
+    def __init__(self):
+        super().__init__()
 
+    def assign_weights(self, graph):
+        pass

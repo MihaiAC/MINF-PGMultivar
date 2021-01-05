@@ -1,5 +1,5 @@
 # Import sample generation functions.
-from mpgm.mpgm.sample_generation.gibbs_samplers import *
+from mpgm.mpgm.sample_generation.samplers import *
 from mpgm.mpgm.sample_generation.graph_generators import *
 from mpgm.mpgm.sample_generation.weight_assigners import *
 from sqlitedict import SqliteDict
@@ -141,7 +141,7 @@ class SampleParamsWrapper():
         return self._sampler
 
     @sampler.setter
-    def sampler(self, value:GibbsSampler):
+    def sampler(self, value:Sampler):
         self._sampler = value
         self.SPS.sampler = (type(value).__name__, vars(value))
 
@@ -169,18 +169,17 @@ class SampleParamsWrapper():
 if __name__ == "__main__":
     sqlite_file_name = "samples.sqlite"
 
-    SGW = SampleParamsWrapper(nr_variables=4,
+    SGW = SampleParamsWrapper(nr_variables=5,
                               nr_samples=50,
                               random_seed=0,
                               sample_init=np.zeros((4, )))
 
     SGW.graph_generator = HubGraphGenerator(nr_hubs=1)
-    SGW.weight_assigner = Bimodal_Distr_Weight_Assigner(threshold=0.9)
-    SGW.model = TPGM(R=10)
-    SGW.sampler = TPGMGibbsSampler(burn_in = 200,
-                                   thinning_nr = 300)
+    SGW.weight_assigner = Dummy_Weight_Assigner()
+    SGW.model = Model(theta = None)
+    SGW.sampler = SIPRVSampler(lambda_true=1, lambda_noise=0.5)
 
-    SGW.generate_samples_and_save("PleaseWork", sqlite_file_name)
-    SPS = SampleParamsWrapper.load_samples("PleaseWork", sqlite_file_name)
-    print(SPS.model)
+    SGW.generate_samples_and_save("TestSIPRV", sqlite_file_name)
+    SPS = SampleParamsWrapper.load_samples("TestSIPRV", sqlite_file_name)
     print(SPS.samples)
+    print(SPS.model[1]['theta'])

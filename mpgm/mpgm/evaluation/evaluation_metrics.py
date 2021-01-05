@@ -7,7 +7,7 @@ from math import ceil
 from typing import Optional, Tuple
 from enum import Enum
 
-from mpgm.mpgm.sample_generation.gibbs_samplers import *
+from mpgm.mpgm.sample_generation.samplers import *
 
 class EvalMetrics():
 
