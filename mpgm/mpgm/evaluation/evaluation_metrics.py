@@ -104,7 +104,7 @@ class EvalMetrics():
                     continue
 
                 real_edge = theta_orig[ii][kk] != 0
-                inferred_edge = np.abs(symm_theta_fit[ii][kk]) <= threshold
+                inferred_edge = np.abs(symm_theta_fit[ii][kk]) > threshold
 
                 if real_edge and inferred_edge:
                     TP += 1
@@ -136,7 +136,7 @@ class EvalMetrics():
                 if real_edge_sign != 0:
                     true_edges += 1
 
-                if symm_theta_fit[ii][kk] <= threshold:
+                if np.abs(symm_theta_fit[ii][kk]) <= threshold:
                     inferred_edge_sign = 0
                 else:
                     inferred_edge_sign = np.sign(symm_theta_fit[ii][kk])
