@@ -209,19 +209,109 @@ class StatsGenerator():
         if not os.path.exists(self.experiment.experiment_name):
             os.makedirs(self.experiment.experiment_name)
 
-    def plot_ys_common_xs(self, plot_name:str, x_name:str, y_name:str, xs:List[Any], list_ys:List[List[Any]],
+    def plot_ys_common_xs(self, plot_title:str, x_name:str, y_name:str, xs:List[Any], list_ys:List[List[Any]],
                           labels:List[str]):
         self.create_experiment_plot_folder()
 
         marker = cycle(('o', '^', 's', 'X', '*'))
         for ii, ys in enumerate(list_ys):
-            plt.plot(xs, ys, linestyle='--', marker=next(marker), label=labels[ii])
+            if len(labels) == 0:
+                plt.plot(xs, ys, linestyle='--', marker=next(marker))
+            else:
+                plt.plot(xs, ys, linestyle='--', marker=next(marker), label=labels[ii])
 
-        plt.title(plot_name)
+        plt.title(plot_title)
         plt.xlabel(x_name)
         plt.ylabel(y_name)
-        plt.legend()
-        plt.savefig(self.experiment.experiment_name + '/' + plot_name + '.png')
+        if len(labels) != 0:
+            plt.legend()
 
-        print('Plotting ' + plot_name + ' finished!')
+        new_title = y_name + ' vs ' + x_name + ": " + plot_title
+        plt.savefig(self.experiment.experiment_name + '/' + new_title + '.png')
+        plt.close()
+
+        print('Plotting ' + plot_title + ', ' + y_name + ' vs ' + x_name +  ' finished!')
+
+    def plot_ys_common_xs_ALL(self, plot_title:str, x_name:str, xs:List[Any]):
+        ww_min = EvalMetrics.SymmModes.WW_MIN
+        ww_max = EvalMetrics.SymmModes.WW_MAX
+        symm_none = EvalMetrics.SymmModes.NONE
+
+        symm_modes = [ww_min, ww_max, symm_none]
+        symm_modes_names = ['ww_min', 'ww_max', 'symm_none']
+
+        for ii in range(len(symm_modes)):
+            symm_mode = symm_modes[ii]
+            symm_name = symm_modes_names[ii]
+            TPRs, FPRs, ACCs = self.get_TPRs_FPRs_ACCs_nonzero(symm_mode)
+            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   x_name=x_name,
+                                   y_name='TPR',
+                                   xs=xs,
+                                   list_ys=[TPRs],
+                                   labels=[])
+
+            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   x_name=x_name,
+                                   y_name='FPR',
+                                   xs=xs,
+                                   list_ys=[FPRs],
+                                   labels=[])
+
+            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   x_name=x_name,
+                                   y_name='ACC',
+                                   xs=xs,
+                                   list_ys=[ACCs],
+                                   labels=[])
+
+            signed_recalls = self.get_signed_recalls(symm_mode)
+            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   x_name=x_name,
+                                   y_name='signed_recall',
+                                   xs=xs,
+                                   list_ys=[signed_recalls],
+                                   labels=[])
+
+            MSEs, diag_MSEs = self.get_MSEs(symm_mode)
+            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   x_name=x_name,
+                                   y_name='MSE',
+                                   xs=xs,
+                                   list_ys=[MSEs],
+                                   labels=[])
+
+            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   x_name=x_name,
+                                   y_name='diag_MSE',
+                                   xs=xs,
+                                   list_ys=[diag_MSEs],
+                                   labels=[])
+
+        sparsities, symm_nonzero, symm_signs, symm_values = self.get_fit_sparsities_and_symms()
+        self.plot_ys_common_xs(plot_title=plot_title,
+                               x_name=x_name,
+                               y_name='sparsity',
+                               xs=xs,
+                               list_ys=[sparsities],
+                               labels=[])
+        self.plot_ys_common_xs(plot_title=plot_title,
+                               x_name=x_name,
+                               y_name='symm_nonzero',
+                               xs=xs,
+                               list_ys=[symm_nonzero],
+                               labels=[])
+        self.plot_ys_common_xs(plot_title=plot_title,
+                               x_name=x_name,
+                               y_name='symm_signs',
+                               xs=xs,
+                               list_ys=[symm_signs],
+                               labels=[])
+        self.plot_ys_common_xs(plot_title=plot_title,
+                               x_name=x_name,
+                               y_name='symm_values',
+                               xs=xs,
+                               list_ys=[symm_values],
+                               labels=[])
+        print(symm_values)
 

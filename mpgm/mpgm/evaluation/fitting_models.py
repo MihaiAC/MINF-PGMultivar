@@ -2,6 +2,7 @@ from mpgm.mpgm.model_fitters.prox_grad_fitters import *
 from mpgm.mpgm.evaluation.generating_samples import SampleParamsWrapper, SampleParamsSave
 from sqlitedict import SqliteDict
 from typing import Optional
+from mpgm.mpgm.evaluation.preprocessing import *
 
 from mpgm.mpgm.models.TPGM import TPGM
 from mpgm.mpgm.models.Model import Model
@@ -20,6 +21,8 @@ class FitParamsSave():
 
         self.model = (None, None)
         self.fitter = (None, None)
+
+        self.preprocessor = None
 
     @property
     def model_name(self):
@@ -49,6 +52,14 @@ class FitParamsWrapper():
 
         self._model = None
         self._fitter = None
+
+    @property
+    def preprocessor(self):
+        return self.FPS.preprocessor
+
+    @preprocessor.setter
+    def preprocessor(self, value:Preprocessor):
+        self.FPS.preprocessor = value
 
     @property
     def random_seed(self):
@@ -120,6 +131,9 @@ class FitParamsWrapper():
                    "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
             self.FPS.theta_init = theta_init
 
+        if self.FPS.preprocessor is not None:
+            self.FPS.preprocessor.preprocess(samples)
+
         theta_final, likelihoods, converged, conditions = self.fitter.call_fit_node(nll=self.model.calculate_nll,
                                                                                     grad_nll=self.model.calculate_grad_nll,
                                                                                     data_points=samples,
@@ -159,6 +173,7 @@ if __name__ == "__main__":
 
     FPW.model = TPGM(R=10)
     FPW.fitter = Prox_Grad_Fitter(alpha=0.065, early_stop_criterion='likelihood')
+    FPW.preprocessor = ClampMax(10)
     theta_final = FPW.fit_model_and_save(fit_id=fit_id,
                                         fit_file_name=fit_file_name,
                                         parallelize=True)
