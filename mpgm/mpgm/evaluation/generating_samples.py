@@ -181,5 +181,6 @@ if __name__ == "__main__":
 
     SGW.generate_samples_and_save("TestSIPRV", sqlite_file_name)
     SPS = SampleParamsWrapper.load_samples("TestSIPRV", sqlite_file_name)
+
     print(SPS.samples)
     print(SPS.model[1]['theta'])

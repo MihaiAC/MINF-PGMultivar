@@ -2,6 +2,7 @@ import numpy as np
 from mpgm.mpgm.models.TPGM import TPGM
 from mpgm.mpgm.models.Model import Model
 from tqdm import trange
+from scipy.special import logsumexp
 
 class Sampler():
     def generate_samples(self, model:Model, init:np.ndarray, nr_samples:int) -> np.ndarray:
@@ -111,5 +112,27 @@ class TPGMGibbsSampler(GibbsSampler):
             aux_params = return_vals[1:]
 
             cdf += cond_prob
+
+        return model.R
+
+class TPGMGibbsSamplerV2(GibbsSampler):
+    def __init__(self, burn_in: int, thinning_nr: int):
+        super().__init__(burn_in, thinning_nr)
+
+    def generate_node_sample(self, model: TPGM, node: int, nodes_values: np.ndarray) -> int:
+        uu = np.random.uniform(0, 1)
+
+        return_vals = model.log_node_cond_prob(node, 0, nodes_values)
+        log_cdf = return_vals[0]
+        aux_params = return_vals[1:]
+
+        for node_value in range(1, model.R + 1):
+            if np.log(uu) < log_cdf:
+                return node_value - 1
+            return_vals = model.log_node_cond_prob(node, node_value, nodes_values, *aux_params)
+            log_cond_prob = return_vals[0]
+            aux_params = return_vals[1:]
+
+            log_cdf = logsumexp([log_cond_prob, log_cdf])
 
         return model.R
