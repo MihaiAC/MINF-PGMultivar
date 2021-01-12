@@ -41,7 +41,7 @@ class Constant_Weight_Assigner(Weight_Assigner):
             for jj in range(ii):
                 if (graph[ii][jj] != 0):
                     graph[ii][jj] = self.ct_weight
-                    graph[ii][jj] = self.ct_weight
+                    graph[jj][ii] = self.ct_weight
 
 
 class Dummy_Weight_Assigner(Weight_Assigner):
