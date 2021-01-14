@@ -48,7 +48,8 @@ class Experiment():
         return sample_name
 
     def get_fit_name(self, batch_nr:int, sample_nr:int) -> str:
-        return "fit_" + self.get_sample_name(batch_nr, sample_nr)
+        fit_name = "fit_" + self.experiment_name + "_batch_" + str(batch_nr) + "_sample_" + str(sample_nr)
+        return fit_name
 
     def vary_x_generate_samples(self, xs:List[Any], f_vary:Callable[[SampleParamsWrapper, Any], None]):
         for batch_nr, x in enumerate(xs):
@@ -68,6 +69,7 @@ class Experiment():
             self.fit_batch_samples_same_FPW(batch_nr)
 
     def fit_batch_samples_same_FPW(self, batch_nr:int):
+        sg = StatsGenerator(self, "", [])
         for sample_nr in range(self.samples_per_batch):
             sample_name = self.get_sample_name(batch_nr, sample_nr)
             fit_name = self.get_fit_name(batch_nr, sample_nr)
@@ -76,6 +78,8 @@ class Experiment():
                                         parallelize=True,
                                         samples_file_name=self.samples_file_name,
                                         samples_id=sample_name)
+            print(self.get_fit_name(batch_nr, sample_nr) + " finished fitting. Average iterations: " +
+                  str(sg.get_avg_nr_iterations_fit(sample_nr, batch_nr)))
 
 # Object can be used for a single experiment; destroy after usage.
 class StatsGenerator():
@@ -103,6 +107,16 @@ class StatsGenerator():
 
         theta_fit = FPS.theta_fit
         return theta_fit
+
+    def get_avg_nr_iterations_fit(self, sample_nr, batch_nr) -> float:
+        fit_name = self.experiment.get_fit_name(batch_nr, sample_nr)
+        FPS = FitParamsWrapper.load_fit(fit_name, self.experiment.fit_file_name)
+
+        nr_variables = len(FPS.likelihoods)
+        nr_iterations = 0
+        for likelihoods in FPS.likelihoods:
+            nr_iterations += len(likelihoods)
+        return nr_iterations/nr_variables
 
     def get_sample_model(self, sample_nr, batch_nr) -> Model:
         sample_name = self.experiment.get_sample_name(batch_nr, sample_nr)
@@ -216,9 +230,18 @@ class StatsGenerator():
 
         return sparsities, symm_nonzero, symm_signs, symm_values
 
+    def get_avg_nr_iterations(self) -> List[float]:
+        avg_iterations = []
+        for batch_nr in range(self.nr_batches):
+            batch_avg_iterations = 0
+            for sample_nr in range(self.experiment.samples_per_batch):
+                batch_avg_iterations += self.get_avg_nr_iterations_fit(sample_nr, batch_nr)
+            avg_iterations.append(batch_avg_iterations/self.experiment.samples_per_batch)
+        return avg_iterations
+
     def create_experiment_plot_folder(self):
-        if not os.path.exists(self.experiment.experiment_name):
-            os.makedirs(self.experiment.experiment_name)
+        if not os.path.exists('../' + self.experiment.experiment_name):
+            os.makedirs('../' + self.experiment.experiment_name)
 
     def plot_ys_common_xs(self, plot_title:str, x_name:str, y_name:str, xs:List[Any], list_ys:List[List[Any]],
                           labels:List[str]):
@@ -238,7 +261,7 @@ class StatsGenerator():
             plt.legend()
 
         new_title = y_name + ' vs ' + x_name + ": " + plot_title
-        plt.savefig(self.experiment.experiment_name + '/' + new_title + '.png')
+        plt.savefig('../' + self.experiment.experiment_name + '/' + new_title + '.png')
         plt.close()
 
         print('Plotting ' + plot_title + ', ' + y_name + ' vs ' + x_name +  ' finished!')
@@ -325,4 +348,12 @@ class StatsGenerator():
                                list_ys=[symm_values],
                                labels=[])
         print(symm_values)
+
+        avg_iterations = self.get_avg_nr_iterations()
+        self.plot_ys_common_xs(plot_title=plot_title,
+                               x_name=x_name,
+                               y_name='Avg iterations until convergence',
+                               xs=xs,
+                               list_ys=[avg_iterations],
+                               labels=[])
 

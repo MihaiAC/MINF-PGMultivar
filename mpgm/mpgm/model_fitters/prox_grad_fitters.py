@@ -175,7 +175,7 @@ class Prox_Grad_Fitter():
                     converged = self.check_likelihood_convergence(k, neg_log_likelihoods)
 
                 if converged:
-                    print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                    # print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
 
                     # In this case, last parameters and likelihood were not the best.
                     if self.early_stop_criterion == "likelihood":

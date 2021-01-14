@@ -49,7 +49,8 @@ if __name__ == '__main__':
                             SPW=SGW,
                             samples_file_name=samples_file_name,
                             FPW=FPW,
-                            fit_file_name=fit_file_name
+                            fit_file_name=fit_file_name,
+                            vary_fit=False
                             )
 
     # experiment.vary_x_generate_samples(samples_numbers, vary_nr_samples)
