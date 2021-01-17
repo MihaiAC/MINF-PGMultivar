@@ -13,7 +13,7 @@ class TPGM(Model):
     :param data: Data to fit the model with.
     """
 
-    def __init__(self, theta:np.array=None, R:int=100):
+    def __init__(self, theta:Optional[np.ndarray]=None, R:Optional[int]=100):
         """
         Constructor for TPGM class.
 
@@ -23,7 +23,8 @@ class TPGM(Model):
         """
         super().__init__(theta)
         self.R = R
-        self.theta = theta
+        # TODO: See if commenting the line below broke anything.
+        # self.theta = theta
 
     def __setattr__(self, key, value):
         if key == 'R':

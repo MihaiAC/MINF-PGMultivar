@@ -172,7 +172,7 @@ if __name__ == "__main__":
                            samples_id=samples_id)
 
     FPW.model = TPGM(R=10)
-    FPW.fitter = Prox_Grad_Fitter(alpha=0.065, early_stop_criterion='likelihood')
+    FPW.fitter = Prox_Grad_Fitter(alpha=0.065, early_stop_criterion='weight')
     FPW.preprocessor = ClampMax(10)
     theta_final = FPW.fit_model_and_save(fit_id=fit_id,
                                         fit_file_name=fit_file_name,

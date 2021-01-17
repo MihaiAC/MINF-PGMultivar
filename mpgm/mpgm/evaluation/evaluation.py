@@ -347,7 +347,6 @@ class StatsGenerator():
                                xs=xs,
                                list_ys=[symm_values],
                                labels=[])
-        print(symm_values)
 
         avg_iterations = self.get_avg_nr_iterations()
         self.plot_ys_common_xs(plot_title=plot_title,

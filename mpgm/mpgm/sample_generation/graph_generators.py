@@ -10,10 +10,20 @@ class GraphGenerator():
         pass
 
 class ScaleFreeGraphGenerator(GraphGenerator):
-    def __init__(self, alpha, beta, gamma):
+    def __init__(self, alpha=0.41, beta=0.54, gamma=0.05):
         super().__init__()
+        # Parameter explanations taken from the NetworkX documentation:
+        # https://networkx.org/documentation/stable//reference/generated/networkx.generators.directed.scale_free_graph.html
+
+        # "Probability for adding a new node connected to an existing node chosen randomly according to the in-degree
+        # distribution."
         self.alpha = alpha
+
+        # "Probability for adding an edge between two existing nodes."
         self.beta = beta
+
+        # "Probability for adding a new node connected to an existing node chosen randomly according to the
+        # out-degree distribution."
         self.gamma = gamma
 
         assert np.isclose(alpha + beta + gamma, 1), "ScaleFreeGraphGenerator: alpha + beta + gamma must sum up to 1"

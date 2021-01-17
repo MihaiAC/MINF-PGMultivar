@@ -114,8 +114,16 @@ class EvalMetrics():
                     TN += 1
                 else:
                     FP += 1
-        TPR = TP / (TP + FN)
-        FPR = FP / (FP + TN)
+        if TP+FN == 0:
+            TPR = 0
+        else:
+            TPR = TP / (TP + FN)
+
+        if FP+TN == 0:
+            FPR = 0
+        else:
+            FPR = FP / (FP + TN)
+
         ACC = (TP + TN) / (TP + FP + TN + FN)
         return TPR, FPR, ACC
 
@@ -144,7 +152,10 @@ class EvalMetrics():
                 if inferred_edge_sign != 0 and inferred_edge_sign == real_edge_sign:
                     signed_TP += 1
 
-        return signed_TP/true_edges
+        if true_edges == 0:
+            return 0
+        else:
+            return signed_TP/true_edges
 
     @staticmethod
     def calculate_MSEs(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes) -> Tuple[float, float]:
@@ -261,6 +272,3 @@ if __name__ == "__main__":
     model_P = globals()[SPS.model_name](**SPS.model_params)
     model_Q = globals()[FPS.model_name](theta=FPS.theta_fit, **FPS.model_params)
     sampler = TPGMGibbsSampler(60, 90)
-
-    # print(node_cond_prob_KL_divergence(model_P, model_Q, sampler))
-

@@ -3,7 +3,7 @@ from typing import Tuple
 
 # All model subclasses that permit sampling, must have a parameter named theta.
 class Model():
-    def __init__(self, theta):
+    def __init__(self, theta:np.ndarray):
         self.theta = theta
 
     def node_cond_prob(self, node:int, node_value:int, data=np.ndarray) -> Tuple[float]:

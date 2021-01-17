@@ -6,6 +6,8 @@ from scipy.optimize import minimize
 from mpgm.mpgm.models.Model import Model
 from functools import partial
 
+from typing import Optional
+
 
 class SPGM(Model):
     """
@@ -15,16 +17,10 @@ class SPGM(Model):
     :param data: Data to fit the model with.
     """
 
-    def __init__(self, theta=None, R=100, R0=50):
-        """
-        Constructor for SPGM class.
-
-        :param theta: N x N matrix, given when we want to generate samples from an existing distribution.
-        :param R: maximum count value, should be an integer.
-        """
+    def __init__(self, theta:np.ndarray, R:int, R0:int):
+        super().__init__(theta)
         self.R = R
         self.R0 = R0
-        self.theta = np.array(theta)
         self.condition = None
 
     def __setattr__(self, key, value):
@@ -46,13 +42,6 @@ class SPGM(Model):
             return 0.5 * (self.R + self.R0)
 
     def generate_node_sample(self, node, nodes_values):
-        """
-        Generate a sample for node from its node-conditional probability.
-
-        :param node: Node to generate sample for.
-        :param data: Current values of the nodes (ordered).
-        :return: A sample from the node-conditional probability of our node.
-        """
         nodes_values_suffst = []
         for node_value in nodes_values:
             nodes_values_suffst.append(self.sufficient_statistics(node_value))
