@@ -13,7 +13,7 @@ class TPGM(Model):
     :param data: Data to fit the model with.
     """
 
-    def __init__(self, theta:Optional[np.ndarray]=None, R:Optional[int]=100):
+    def __init__(self, theta:Optional[np.ndarray]=None, R:Optional[int]=10):
         """
         Constructor for TPGM class.
 
@@ -29,7 +29,6 @@ class TPGM(Model):
     def __setattr__(self, key, value):
         if key == 'R':
             assert type(value) is int and value > 0, "R must be a positive integer"
-            assert value <= 100, "The model has not been tested with R values higher than 100"
         super(TPGM, self).__setattr__(key, value)
 
     def node_cond_prob(self, node:int, node_value:int, data:np.ndarray, dot_product:Optional[float]=None,

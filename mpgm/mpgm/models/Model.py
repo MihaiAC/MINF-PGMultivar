@@ -6,7 +6,7 @@ class Model():
     def __init__(self, theta:np.ndarray):
         self.theta = theta
 
-    def node_cond_prob(self, node:int, node_value:int, data=np.ndarray) -> Tuple[float]:
+    def node_cond_prob(self, node:int, node_value:int, data=np.ndarray) -> Tuple[float, float, float]:
         pass
 
     def calculate_nll_and_grad_nll_datapoint(self, node, datapoint, theta_curr):

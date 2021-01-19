@@ -1,5 +1,6 @@
 import numpy as np
 from mpgm.mpgm.models.TPGM import TPGM
+from mpgm.mpgm.models.SPGM import SPGM
 from mpgm.mpgm.models.Model import Model
 from tqdm import trange
 from scipy.special import logsumexp
@@ -67,6 +68,12 @@ class GibbsSampler(Sampler):
         self.burn_in = burn_in
         self.thinning_nr = thinning_nr
 
+    def __setattr__(self, key, value):
+        if key == 'thinning_nr':
+            assert type(value) is int and value > 0, "The thinning number must be a positive integer."
+        super(GibbsSampler, self).__setattr__(key, value)
+
+
     def generate_node_sample(self, model:Model, node:int, nodes_values:np.ndarray) -> int:
         pass
 
@@ -115,24 +122,41 @@ class TPGMGibbsSampler(GibbsSampler):
 
         return model.R
 
-class TPGMGibbsSamplerV2(GibbsSampler):
-    def __init__(self, burn_in: int, thinning_nr: int):
+class SPGMGibbsSampler(GibbsSampler):
+    def __init__(self, burn_in:int, thinning_nr:int):
         super().__init__(burn_in, thinning_nr)
 
-    def generate_node_sample(self, model: TPGM, node: int, nodes_values: np.ndarray) -> int:
-        uu = np.random.uniform(0, 1)
+    def generate_node_sample(self, model:SPGM, node:int, nodes_values:np.ndarray):
+        nodes_values_suffst = []
+        for node_value in nodes_values:
+            nodes_values_suffst.append(model.sufficient_statistics(node_value))
+        nodes_values_suffst = np.array(nodes_values_suffst)
 
-        return_vals = model.log_node_cond_prob(node, 0, nodes_values)
-        log_cdf = return_vals[0]
+        uu = np.random.uniform(0, 1, 1)[0]
+
+        # # TODO: remove debug.
+        # print("Uniform shit is: " + str(uu))
+
+        return_vals = model.node_cond_prob(node, 0, nodes_values_suffst)
+        cdf = return_vals[0]
         aux_params = return_vals[1:]
 
-        for node_value in range(1, model.R + 1):
-            if np.log(uu) < log_cdf:
+        node_value = 1
+        while (True):
+            if uu < cdf:
+                # # TODO: remove debug
+                # print("generate_node_sample: node=" + str(node) + "node_value=" + str(node_value-1))
                 return node_value - 1
-            return_vals = model.log_node_cond_prob(node, node_value, nodes_values, *aux_params)
-            log_cond_prob = return_vals[0]
+            return_vals = model.node_cond_prob(node, node_value, nodes_values_suffst, *aux_params)
+            cond_prob = return_vals[0]
             aux_params = return_vals[1:]
 
-            log_cdf = logsumexp([log_cond_prob, log_cdf])
+            cdf += cond_prob
+            node_value += 1
 
-        return model.R
+            # There's an infinite loop here. Why?
+
+
+            # # TODO: remove debug
+            # print(return_vals)
+            # print(cdf)

@@ -1,32 +1,29 @@
 import numpy as np
 from tqdm import tqdm
 from multiprocessing import Pool
-from scipy.special import gammaln
+from scipy.special import gammaln, logsumexp
 from scipy.optimize import minimize
 from mpgm.mpgm.models.Model import Model
 from functools import partial
 
-from typing import Optional
+from typing import Optional, List, Tuple
 
 
 class SPGM(Model):
-    """
-    Class for generating samples from and fitting SPGM distributions.
-    :param R: model parameter
-    :param R0: model parameter
-    :param data: Data to fit the model with.
-    """
-
-    def __init__(self, theta:np.ndarray, R:int, R0:int):
+    def __init__(self, theta:Optional[np.ndarray]=None, R:Optional[int]=10, R0:Optional[int]=5,
+                 partition_atol:Optional[float]=1e-20, partition_max_iter:Optional[int]=10000):
         super().__init__(theta)
         self.R = R
         self.R0 = R0
+
+        self.partition_atol = partition_atol
+        self.partition_max_iter = partition_max_iter
+
         self.condition = None
 
     def __setattr__(self, key, value):
         if key == 'R':
             assert type(value) is int and value > 0, "R must be a positive integer"
-            assert value <= 100, "The model has not been tested with R values higher than 100"
 
         if key == 'R0':
             assert type(value) is int and value > 0 and value < self.R, 'R0 must be a positive integer, smaller than R'
@@ -41,74 +38,54 @@ class SPGM(Model):
         else:
             return 0.5 * (self.R + self.R0)
 
-    def generate_node_sample(self, node, nodes_values):
-        nodes_values_suffst = []
-        for node_value in nodes_values:
-            nodes_values_suffst.append(self.sufficient_statistics(node_value))
+    def estimate_partition_exponents(self, node:int, node_values_suffst:np.ndarray) -> List[float]:
+        '''
+        Estimates partition by summing terms until it converges or runs out of alotted iterations.
+        '''
+        # TODO: This missed the first exponent, which is always 0.
+        first_exponent = 0
+        # first_exponent = (self.theta[node, node] + np.dot(self.theta[node, :], node_values_suffst) - \
+        #             self.theta[node, node] * node_values_suffst[node]) * node_values_suffst[1] - gammaln(2)
 
-        uu = np.random.uniform(0, 1, 1)[0]
-
-        prob1, partition_max_exp, partition_reduced, dot_product = self.node_cond_prob(node, 0, nodes_values_suffst)
-        cdf = prob1
-
-        node_value = 1
-        while(True):
-            if uu < cdf:
-                return node_value-1
-            cdf += self.node_cond_prob(node, node_value, nodes_values, dot_product, partition_max_exp, partition_reduced)[0]
-            node_value += 1
-
-    def calculate_partition(self, node, node_values_suffst):
-        first_exponent = (self.theta[node, node] + np.dot(self.theta[node, :], node_values_suffst) - \
-                    self.theta[node, node] * node_values_suffst[node]) * node_values_suffst[1] - gammaln(2)
-
-        # Implicit assumption: atol value. Should it be a parameter? - debatable, as this method is experimental;
-        atol = min(np.exp(first_exponent) * 1e-5, 1e-5)
-        max_iterations = 1000
+        # TODO: I no longer agree with the statement below. Revisit after experimentation?
+        # atol = min(np.exp(first_exponent) * self.partition_atol, self.partition_atol)
+        atol = self.partition_atol
+        max_iterations = self.partition_max_iter
 
         iterations = 0
         exponents = []
         exponent = first_exponent
-        max_exponent = -np.inf
         while (not np.isclose(np.exp(exponent), 0, atol=atol) and iterations < max_iterations):
             exponents.append(exponent)
             iterations += 1
+            node_value = iterations
 
             exponent = (self.theta[node, node] + np.dot(self.theta[node, :], node_values_suffst) - \
-                    self.theta[node, node] * node_values_suffst[node]) * self.sufficient_statistics(iterations+1) - \
-                    gammaln(iterations+2)
+                    self.theta[node, node] * node_values_suffst[node]) * self.sufficient_statistics(node_value) - \
+                    gammaln(node_value+1)
 
-            if exponent > max_exponent:
-                max_exponent = exponent
+            # print(exponent)
 
-        return exponents, max_exponent
+        return exponents
 
-    def node_cond_prob(self, node, node_value, node_values_suffst, dot_product=None, partition_max_exp=None, partition_reduced=None):
-        """
-        Calculates the probability of node having the provided value given the other nodes.
-
-        :param node: Integer representing the node we're interested in.
-        :param node_values_suffst: 1 X P array containing the values of the sufficient statistics of the other nodes;
-        :param node_value: Value of the node we're interested in.
-        :param partition: Optional argument, equal to the value of the partition function. Relevant only for sampling.
-        :param dot_product: Inner dot product present in the partition function and denominator of the conditional
-            probability.
-        :return: A tuple containing the likelihood, the value of the partition function and the dot_product in this order.
-        """
+    def node_cond_prob(self, node:int, node_value:int, node_values_suffst:np.ndarray, dot_product:Optional[float]=None,
+                       log_partition:Optional[float]=None) -> Tuple[float, float, float]:
         if dot_product is None:
             dot_product = np.dot(self.theta[node, :], node_values_suffst) - self.theta[node, node] * \
                           node_values_suffst[node] + self.theta[node, node]
 
-        if partition_reduced is None:
-            partition_exponents, partition_max_exp = self.calculate_partition(node, node_values_suffst)
-            partition_reduced = 0
-            for kk in range(len(partition_exponents)):
-                partition_reduced += np.exp(partition_exponents[kk] - partition_max_exp)
+        if log_partition is None:
+            partition_exponents = self.estimate_partition_exponents(node, node_values_suffst)
+            log_partition = logsumexp(partition_exponents)
+            # # TODO: remove debug.
+            # print("Node: " + str(node) + " Node_value: " + str(node_value) + " Log partition: " + str(log_partition))
 
-        cond_prob = np.exp(dot_product * node_value - gammaln(node_value) - partition_max_exp)/partition_reduced
+        cond_prob = np.exp(dot_product * self.sufficient_statistics(node_value) - gammaln(node_value+1) - log_partition)
+        return cond_prob, dot_product, log_partition
 
-        return cond_prob, partition_max_exp, partition_reduced, dot_product
 
+# This is enough to test sampling from SPGM.
+# TODO: Refactor the rest for fitting.
     def calculate_ll_datapoint(self, node, datapoint, theta_curr):
         """
         :return: returns (nll_datapoint, log_partition)
