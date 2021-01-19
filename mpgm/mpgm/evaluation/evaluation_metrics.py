@@ -260,6 +260,27 @@ class EvalMetrics():
         p = graph.shape[0]
         return ceil(ct * np.log(p) * d ** 2)
 
+    @staticmethod
+    def get_percentage_negative_edges(graph:np.ndarray) -> float:
+        nr_edges = 0
+        nr_negative_edges = 0
+        nr_variables = graph.shape[0]
+        for ii in range(nr_variables):
+            for jj in range(nr_variables):
+                if ii == jj:
+                    continue
+
+                edge_sign = np.sign(graph[ii][jj])
+                if edge_sign != 0:
+                    nr_edges += 1
+                    if edge_sign < 0:
+                        nr_negative_edges += 1
+
+        if nr_edges == 0:
+            return 0
+        else:
+            return nr_negative_edges/nr_edges
+
 if __name__ == "__main__":
     sqlite_file_name = "samples.sqlite"
     SPS = SampleParamsWrapper.load_samples("PleaseWork", sqlite_file_name)
