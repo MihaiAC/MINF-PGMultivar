@@ -1,17 +1,10 @@
-from mpgm.mpgm.model_fitters.prox_grad_fitters import Prox_Grad_Fitter
 from mpgm.mpgm.evaluation.evaluation_metrics import *
-
 from mpgm.mpgm.sample_generation.samplers import *
-from mpgm.mpgm.sample_generation.graph_generators import *
 from mpgm.mpgm.sample_generation.weight_assigners import *
 
 from mpgm.mpgm.evaluation.evaluation_metrics import EvalMetrics
 
 from mpgm.mpgm.models.Model import Model
-from mpgm.mpgm.models.TPGM import TPGM
-from mpgm.mpgm.models.QPGM import QPGM
-from mpgm.mpgm.models.SPGM import SPGM
-from mpgm.mpgm.models.LPGM import LPGM
 
 from typing import List, Any, Callable
 
@@ -132,127 +125,105 @@ class StatsGenerator():
         model = globals()[FPS.model_name](**FPS.model_params)
         return model
 
-    def get_TPRs_FPRs_ACCs_nonzero(self, symm_mode:EvalMetrics.SymmModes):
-        TPRs = []
-        FPRs = []
-        ACCs = []
+    def get_TPRs_FPRs_ACCs_nonzero(self, symm_mode:EvalMetrics.SymmModes) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        TPRs = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+        FPRs = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+        ACCs = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
 
         for batch_nr in range(self.nr_batches):
-            batch_TPR, batch_FPR, batch_ACC = 0, 0, 0
             for sample_nr in range(self.experiment.samples_per_batch):
                 theta_orig = self.get_theta_orig(sample_nr, batch_nr)
                 theta_fit = self.get_theta_fit(sample_nr, batch_nr)
 
                 TPR_sample, FPR_sample, ACC_sample = EvalMetrics.calculate_tpr_fpr_acc_nonzero(theta_orig, theta_fit, symm_mode)
-                batch_TPR += TPR_sample
-                batch_FPR += FPR_sample
-                batch_ACC += ACC_sample
+                TPRs[sample_nr, batch_nr] = TPR_sample
+                FPRs[sample_nr, batch_nr] = FPR_sample
+                ACCs[sample_nr, batch_nr] = ACC_sample
+        return np.array(TPRs), np.array(FPRs), np.array(ACCs)
 
-            N = self.experiment.samples_per_batch
-            TPRs.append(batch_TPR/N)
-            FPRs.append(batch_FPR/N)
-            ACCs.append(batch_ACC/N)
-
-        return TPRs, FPRs, ACCs
-
-    def get_signed_recalls(self, symm_mode:EvalMetrics.SymmModes):
-        signed_recalls = []
+    def get_edge_sign_recalls(self, symm_mode:EvalMetrics.SymmModes) -> np.ndarray:
+        edge_sign_recalls = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
 
         for batch_nr in range(self.nr_batches):
-            batch_signed_recall = 0
             for sample_nr in range(self.experiment.samples_per_batch):
                 theta_orig = self.get_theta_orig(sample_nr, batch_nr)
                 theta_fit = self.get_theta_fit(sample_nr, batch_nr)
 
-                batch_signed_recall += EvalMetrics.calculate_signed_recall(theta_orig, theta_fit, symm_mode)
-            signed_recalls.append(batch_signed_recall/self.experiment.samples_per_batch)
+                edge_sign_recalls[sample_nr, batch_nr] = EvalMetrics.calculate_edge_sign_recall(theta_orig, theta_fit, symm_mode)
+        return np.array(edge_sign_recalls)
 
-        return signed_recalls
-
-    def get_MSEs(self, symm_mode:EvalMetrics.SymmModes):
-        MSEs = []
-        diag_MSEs = []
+    def get_MSEs(self, symm_mode:EvalMetrics.SymmModes) -> Tuple[np.ndarray, np.ndarray]:
+        MSEs = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+        diag_MSEs = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
 
         for batch_nr in range(self.nr_batches):
-            batch_MSE, batch_diag_MSE = (0, 0)
             for sample_nr in range(self.experiment.samples_per_batch):
                 theta_orig = self.get_theta_orig(sample_nr, batch_nr)
                 theta_fit = self.get_theta_fit(sample_nr, batch_nr)
 
                 sample_MSE, sample_diag_MSE = EvalMetrics.calculate_MSEs(theta_orig, theta_fit, symm_mode)
-                batch_MSE += sample_MSE
-                batch_diag_MSE += batch_diag_MSE
-
-            N = self.experiment.samples_per_batch
-            MSEs.append(batch_MSE/N)
-            diag_MSEs.append(batch_diag_MSE/N)
+                MSEs[sample_nr, batch_nr] = sample_MSE
+                diag_MSEs[sample_nr, batch_nr] = sample_diag_MSE
 
         return MSEs, diag_MSEs
 
-    def get_KL_divergences(self, sampler:GibbsSampler):
-        node_KL_divergences = []
+    def get_KL_divergences(self, sampler:GibbsSampler) -> np.ndarray:
+        node_KL_divergences = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
 
         for batch_nr in range(self.nr_batches):
-            batch_node_KL_divergence = np.zeros((self.nr_variables, ))
             for sample_nr in range(self.experiment.samples_per_batch):
                 model_init_P = self.get_sample_model(sample_nr, batch_nr)
                 model_fit_Q = self.get_fit_model(sample_nr, batch_nr)
 
-                batch_node_KL_divergence += EvalMetrics.node_cond_prob_KL_divergence(model_init_P, model_fit_Q, sampler)[0]
-
-            N = self.experiment.samples_per_batch
-            node_KL_divergences.append(batch_node_KL_divergence/N)
+                node_KL_divergences[sample_nr, batch_nr] = EvalMetrics.node_cond_prob_KL_divergence(model_init_P, model_fit_Q, sampler)[0]
 
         return node_KL_divergences
 
 
-    def get_fit_sparsities_and_symms(self):
-        symm_nonzero = []
-        symm_values = []
-        symm_signs = []
-        sparsities = []
+    def get_fit_sparsities_and_symms(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        symm_nonzero = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+        symm_values = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+        symm_signs = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+        sparsities = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
 
         for batch_nr in range(self.nr_batches):
-            batch_nonzero, batch_values, batch_signs, batch_sparsity = (0, 0, 0, 0)
             for sample_nr in range(self.experiment.samples_per_batch):
                 theta_fit = self.get_theta_fit(sample_nr, batch_nr)
 
-                batch_nonzero += EvalMetrics.calculate_percentage_symmetric_nonzero(theta_fit)
-                batch_values += EvalMetrics.calculate_percentage_symmetric_values(theta_fit)
-                batch_signs += EvalMetrics.calculate_percentage_symmetric_signs(theta_fit)
-                batch_sparsity += EvalMetrics.calculate_percentage_sparsity(theta_fit)
-
-            N = self.experiment.samples_per_batch
-            symm_nonzero.append(batch_nonzero/N)
-            symm_values.append(batch_values/N)
-            symm_signs.append(batch_signs/N)
-            sparsities.append(batch_sparsity/N)
+                symm_nonzero[sample_nr, batch_nr] = EvalMetrics.calculate_percentage_symmetric_nonzero(theta_fit)
+                symm_values[sample_nr, batch_nr] = EvalMetrics.calculate_percentage_symmetric_values(theta_fit)
+                symm_signs[sample_nr, batch_nr] = EvalMetrics.calculate_percentage_symmetric_signs(theta_fit)
+                sparsities[sample_nr, batch_nr] = EvalMetrics.calculate_percentage_sparsity(theta_fit)
 
         return sparsities, symm_nonzero, symm_signs, symm_values
 
-    def get_avg_nr_iterations(self) -> List[float]:
-        avg_iterations = []
+    def get_nr_iterations(self) -> np.ndarray:
+        nr_iterations = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
         for batch_nr in range(self.nr_batches):
-            batch_avg_iterations = 0
             for sample_nr in range(self.experiment.samples_per_batch):
-                batch_avg_iterations += self.get_avg_nr_iterations_fit(sample_nr, batch_nr)
-            avg_iterations.append(batch_avg_iterations/self.experiment.samples_per_batch)
-        return avg_iterations
+                nr_iterations[sample_nr, batch_nr] = self.get_avg_nr_iterations_fit(sample_nr, batch_nr)
+        return nr_iterations
 
     def create_experiment_plot_folder(self):
         if not os.path.exists('../' + self.experiment.experiment_name):
             os.makedirs('../' + self.experiment.experiment_name)
 
-    def plot_ys_common_xs(self, plot_title:str, x_name:str, y_name:str, xs:List[Any], list_ys:List[List[Any]],
-                          labels:List[str]):
+    def plot_ys_common_xs(self, xs:List[Any], list_ys:List[np.ndarray], ys_errors:List[np.ndarray], x_name:str,
+                          y_name:str, plot_title:str, labels:List[str]):
         self.create_experiment_plot_folder()
 
         marker = cycle(('o', '^', 's', 'X', '*'))
         for ii, ys in enumerate(list_ys):
             if len(labels) == 0:
-                plt.plot(xs, ys, linestyle='--', marker=next(marker))
+                if len(ys_errors) == 0:
+                    plt.plot(xs, ys, linestyle='--', marker=next(marker))
+                else:
+                    plt.errorbar(xs, ys, yerr=ys_errors[ii], marker=next(marker))
             else:
-                plt.plot(xs, ys, linestyle='--', marker=next(marker), label=labels[ii])
+                if len(ys_errors) == 0:
+                    plt.plot(xs, ys, linestyle='--', marker=next(marker), label=labels[ii])
+                else:
+                    plt.errorbar(xs, ys, yerr=ys_errors[ii], marker=next(marker))
 
         plt.title(plot_title)
         plt.xlabel(x_name)
@@ -278,81 +249,91 @@ class StatsGenerator():
             symm_mode = symm_modes[ii]
             symm_name = symm_modes_names[ii]
             TPRs, FPRs, ACCs = self.get_TPRs_FPRs_ACCs_nonzero(symm_mode)
-            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+            self.plot_ys_common_xs(xs=xs,
+                                   list_ys=[np.mean(TPRs, axis=0)],
+                                   ys_errors=[np.std(TPRs, axis=0)],
                                    x_name=x_name,
                                    y_name='TPR',
-                                   xs=xs,
-                                   list_ys=[TPRs],
+                                   plot_title=plot_title + ":symm_mode=" + symm_name,
                                    labels=[])
 
-            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+            self.plot_ys_common_xs(xs=xs,
+                                   list_ys=[np.mean(FPRs, axis=0)],
+                                   ys_errors=[np.std(FPRs, axis=0)],
                                    x_name=x_name,
                                    y_name='FPR',
-                                   xs=xs,
-                                   list_ys=[FPRs],
+                                   plot_title=plot_title + ":symm_mode=" + symm_name,
                                    labels=[])
 
-            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+            self.plot_ys_common_xs(xs=xs,
+                                   list_ys=[np.mean(ACCs, axis=0)],
+                                   ys_errors=[np.std(ACCs, axis=0)],
                                    x_name=x_name,
                                    y_name='ACC',
-                                   xs=xs,
-                                   list_ys=[ACCs],
+                                   plot_title=plot_title + ":symm_mode=" + symm_name,
                                    labels=[])
 
-            signed_recalls = self.get_signed_recalls(symm_mode)
-            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+            edge_sign_recalls = self.get_edge_sign_recalls(symm_mode)
+            self.plot_ys_common_xs(xs=xs,
+                                   list_ys=[np.mean(edge_sign_recalls, axis=0)],
+                                   ys_errors=[np.std(edge_sign_recalls, axis=0)],
                                    x_name=x_name,
-                                   y_name='signed_recall',
-                                   xs=xs,
-                                   list_ys=[signed_recalls],
+                                   y_name='edge_sign_recall',
+                                   plot_title=plot_title + ":symm_mode=" + symm_name,
                                    labels=[])
 
             MSEs, diag_MSEs = self.get_MSEs(symm_mode)
-            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+            self.plot_ys_common_xs(xs=xs,
+                                   list_ys=[np.mean(MSEs, axis=0)],
+                                   ys_errors=[np.std(MSEs, axis=0)],
                                    x_name=x_name,
                                    y_name='MSE',
-                                   xs=xs,
-                                   list_ys=[MSEs],
+                                   plot_title=plot_title + ":symm_mode=" + symm_name,
                                    labels=[])
 
-            self.plot_ys_common_xs(plot_title=plot_title + ":symm_mode=" + symm_name,
+            self.plot_ys_common_xs(xs=xs,
+                                   list_ys=[np.mean(diag_MSEs, axis=0)],
+                                   ys_errors=[np.std(diag_MSEs, axis=0)],
                                    x_name=x_name,
                                    y_name='diag_MSE',
-                                   xs=xs,
-                                   list_ys=[diag_MSEs],
+                                   plot_title=plot_title + ":symm_mode=" + symm_name,
                                    labels=[])
 
         sparsities, symm_nonzero, symm_signs, symm_values = self.get_fit_sparsities_and_symms()
-        self.plot_ys_common_xs(plot_title=plot_title,
+        self.plot_ys_common_xs(xs=xs,
+                               list_ys=[np.mean(sparsities, axis=0)],
+                               ys_errors=[np.std(sparsities, axis=0)],
                                x_name=x_name,
                                y_name='sparsity',
-                               xs=xs,
-                               list_ys=[sparsities],
+                               plot_title=plot_title,
                                labels=[])
-        self.plot_ys_common_xs(plot_title=plot_title,
+        self.plot_ys_common_xs(xs=xs,
+                               list_ys=[np.mean(symm_nonzero, axis=0)],
+                               ys_errors=[np.std(symm_nonzero, axis=0)],
                                x_name=x_name,
                                y_name='symm_nonzero',
-                               xs=xs,
-                               list_ys=[symm_nonzero],
+                               plot_title=plot_title,
                                labels=[])
-        self.plot_ys_common_xs(plot_title=plot_title,
+        self.plot_ys_common_xs(xs=xs,
+                               list_ys=[np.mean(symm_signs, axis=0)],
+                               ys_errors=[np.std(symm_signs, axis=0)],
                                x_name=x_name,
                                y_name='symm_signs',
-                               xs=xs,
-                               list_ys=[symm_signs],
+                               plot_title=plot_title,
                                labels=[])
-        self.plot_ys_common_xs(plot_title=plot_title,
+        self.plot_ys_common_xs(xs=xs,
+                               list_ys=[np.mean(symm_values, axis=0)],
+                               ys_errors=[np.std(symm_values, axis=0)],
                                x_name=x_name,
                                y_name='symm_values',
-                               xs=xs,
-                               list_ys=[symm_values],
+                               plot_title=plot_title,
                                labels=[])
 
-        avg_iterations = self.get_avg_nr_iterations()
-        self.plot_ys_common_xs(plot_title=plot_title,
+        nr_iterations = self.get_nr_iterations()
+        self.plot_ys_common_xs(xs=xs,
+                               list_ys=[np.mean(nr_iterations, axis=0)],
+                               ys_errors=[np.std(nr_iterations, axis=0)],
                                x_name=x_name,
-                               y_name='Avg iterations until convergence',
-                               xs=xs,
-                               list_ys=[avg_iterations],
+                               y_name='Average iterations',
+                               plot_title=plot_title,
                                labels=[])
-
