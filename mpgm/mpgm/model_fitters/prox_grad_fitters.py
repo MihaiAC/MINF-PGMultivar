@@ -1,5 +1,6 @@
 import numpy as np
 import multiprocessing
+from prox_operators import SoftThreshold, QuadProgOperator, AdmmOperator
 from typing import Callable, Optional, Iterator, Any, Tuple, List
 
 class Prox_Grad_Fitter():
@@ -33,19 +34,12 @@ class Prox_Grad_Fitter():
         self.abs_tol = abs_tol
         self.early_stop_criterion = early_stop_criterion
         self.minimum_iterations_until_early_stop = minimum_iterations_until_early_stop
+
+        self.prox_operator = SoftThreshold()
         assert minimum_iterations_until_early_stop > 0, "At least one iteration must pass until convergence is checked."
 
-    # Prox operators -> perhaps make them a class of their own if needed.
-    # For now, it's not necessary, since we have been using only soft thresholding
-
-    @staticmethod
-    def soft_thresholding_prox_operator(x, threshold):
-        x_plus = x - threshold
-        x_minus = x + threshold
-
-        return x_plus * (x_plus > 0) + x_minus * (x_minus < 0)
-
-    def update_fit_params(self, iteration, prev_params, penultimate_params):
+    def update_fit_params(self, iteration:int, prev_params:np.ndarray, penultimate_params:np.ndarray, node:int,
+                          reg_param:float, data_points:np.ndarray):
         if self.accelerated:
             w_k = iteration / (iteration + 3)
             params = prev_params + w_k * (prev_params - penultimate_params)
@@ -139,11 +133,19 @@ class Prox_Grad_Fitter():
         theta_k_1 = np.copy(theta_node_init)
         step_size_k = self.init_step_size
 
+        # TODO: remove
+        theta_evolution = []
+        theta_evolution.append(list(theta_node_init))
+
         z = np.zeros(np.size(theta_node_init))
         f_z = 0
 
         for k in range(self.max_iter):
-            theta_k = self.update_fit_params(k, theta_k_1, theta_k_2)
+            theta_k = self.update_fit_params(k, theta_k_1, theta_k_2, node, step_size_k * self.alpha, data_points)
+
+            # TODO: remove
+            theta_evolution.append(list(theta_k))
+
             f_theta_k = f_nll(node, data_points, theta_k)
             grad_f_theta_k = f_grad_nll(node, data_points, theta_k)
 
@@ -152,7 +154,9 @@ class Prox_Grad_Fitter():
             for _ in range(self.max_line_search_iter):
                 candidate_new_theta_k = theta_k - step_size_k * grad_f_theta_k
                 threshold = step_size_k * self.alpha
-                z = Prox_Grad_Fitter.soft_thresholding_prox_operator(candidate_new_theta_k, threshold)
+                z = self.prox_operator.prox(objective=candidate_new_theta_k,
+                                            reg_parameter=threshold,
+                                            node=node)
 
                 f_tilde = f_theta_k + np.dot(grad_f_theta_k, z-theta_k) + (1/(2 * step_size_k)) * np.sum((z-theta_k) ** 2)
                 f_z = f_nll(node, data_points, z)
@@ -168,6 +172,8 @@ class Prox_Grad_Fitter():
                 theta_k_1 = z
                 neg_log_likelihoods.append(f_z)
 
+                theta_evolution.append(list(z))
+
                 converged = False
                 if self.early_stop_criterion == 'weight':
                     converged = self.check_params_convergence(k, theta_k_1, theta_k_2)
@@ -176,7 +182,6 @@ class Prox_Grad_Fitter():
 
                 if converged:
                     # print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
-
                     # In this case, last parameters and likelihood were not the best.
                     if self.early_stop_criterion == "likelihood":
                         theta_k_1 = theta_k_2
@@ -189,4 +194,49 @@ class Prox_Grad_Fitter():
                 print('\nProx grad failed to converge for node ' + str(node))
                 break
 
-        return theta_k_1, np.array(neg_log_likelihoods), converged, np.array(conditions)
+        self.data_points = None
+        theta_evolution = np.array(theta_evolution)
+        return theta_k_1, np.array(neg_log_likelihoods), converged, np.array(conditions), theta_evolution
+
+class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
+    def __init__(self, alpha, accelerated=True, constraint_solver='admm', max_iter=5000, max_line_search_iter=50,
+                 line_search_rel_tol=1e-4, init_step_size=1.0, beta=0.5, rel_tol=1e-3, abs_tol=1e-6,
+                 early_stop_criterion='weight', minimum_iterations_until_early_stop=1,
+                 admm_tau: Optional[float] = 0.1,
+                 admm_min_iter: Optional[int] = 100,
+                 admm_max_iter: Optional[int] = 1000):
+        super().__init__(alpha, accelerated, max_iter, max_line_search_iter, line_search_rel_tol, init_step_size,
+                         beta, rel_tol, abs_tol, early_stop_criterion, minimum_iterations_until_early_stop)
+
+        constraint_solvers = ['cvxopt', 'qpoases', 'osqp', 'admm', 'none']
+        assert constraint_solver in constraint_solvers, "Constraint solver not recognised: " + str(constraint_solver) +\
+                                                        ". Choose one of: " + str(constraint_solvers) + "."
+
+        if constraint_solver in ['cvxopt', 'qpoases', 'osqp']:
+            self.prox_operator = QuadProgOperator(constraint_solver)
+        elif constraint_solver == 'admm':
+            self.prox_operator = AdmmOperator(tau=admm_tau,
+                                              min_iter=admm_min_iter,
+                                              max_iter=admm_max_iter)
+        elif constraint_solver == 'none':
+            self.prox_operator = SoftThreshold()
+
+    # A matrix' row rank is equal to its column rank.
+    # This is why in this case, the max rank will be 10 (for a 150x10 matrix).
+    # E.g. the max number of linearly independent rows will be 10.
+
+    # @staticmethod
+    # def is_pos_semidef(x):
+    #     return np.all(np.linalg.eigvals(x) >= 0)
+
+    def update_fit_params(self, iteration:int, prev_params:np.ndarray, penultimate_params:np.ndarray, node:int,
+                          reg_parameter:float, data_points:np.ndarray):
+        if self.accelerated:
+            w_k = iteration / (iteration + 3)
+            params = prev_params + w_k * (prev_params - penultimate_params)
+            # Need to project this to a point; sparsity is not as important here.
+            if iteration != 0:
+                params = self.prox_operator.prox(params, reg_parameter, node, data_points)
+        else:
+            params = prev_params
+        return params
