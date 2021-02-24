@@ -85,7 +85,7 @@ class TPGM(Model):
         cond_prob = dot_product * node_value - gammaln(node_value+1) - partition
         return cond_prob, dot_product, partition
 
-    def calculate_ll_datapoint(self, node:int, datapoint:np.array, node_theta_curr:np.array) -> float:
+    def calculate_ll_datapoint(self, node:int, datapoint:np.ndarray, node_theta_curr:np.ndarray) -> float:
         """
         :return: returns (nll_datapoint, log_partition)
         """
