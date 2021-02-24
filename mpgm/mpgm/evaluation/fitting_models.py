@@ -18,6 +18,8 @@ class FitParamsSave():
         self.likelihoods = None
         self.converged = None
         self.conditions = None
+        self.regularization_paths = None
+        self.avg_node_fit_time = None
 
         self.model = (None, None)
         self.fitter = (None, None)
@@ -134,18 +136,21 @@ class FitParamsWrapper():
         if self.FPS.preprocessor is not None:
             self.FPS.preprocessor.preprocess(samples)
 
-        theta_final, likelihoods, converged, conditions = self.fitter.call_fit_node(nll=self.model.calculate_nll,
-                                                                                    grad_nll=self.model.calculate_grad_nll,
-                                                                                    data_points=samples,
-                                                                                    theta_init=self.FPS.theta_init,
-                                                                                    parallelize=parallelize)
-        self.model.theta = theta_final
+        fit_results = self.fitter.call_fit_node(nll=self.model.calculate_nll,
+                                                grad_nll=self.model.calculate_grad_nll,
+                                                data_points=samples,
+                                                theta_init=self.FPS.theta_init,
+                                                parallelize=parallelize)
+
+        self.model.theta = fit_results[0]
         self.model = self.model # Update FPS' model.
 
-        self.FPS.theta_fit = theta_final
-        self.FPS.likelihoods = likelihoods
-        self.FPS.converged = converged
-        self.FPS.conditions = conditions
+        self.FPS.theta_fit = fit_results[0]
+        self.FPS.likelihoods = fit_results[1]
+        self.FPS.converged = fit_results[2]
+        self.FPS.conditions = fit_results[3]
+        self.FPS.regularization_paths = fit_results[4]
+        self.FPS.avg_node_fit_time = fit_results[5]
 
         fits_dict = SqliteDict('./' + fit_file_name, autocommit=True)
         fits_dict[fit_id] = self.FPS
