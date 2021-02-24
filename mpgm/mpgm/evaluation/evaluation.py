@@ -179,6 +179,17 @@ class StatsGenerator():
 
         return node_KL_divergences
 
+    def get_avg_node_fit_times(self) -> np.ndarray:
+        avg_fit_times = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
+
+        for batch_nr in range(self.nr_batches):
+            for sample_nr in range(self.experiment.samples_per_batch):
+                fit_name = self.experiment.get_fit_name(batch_nr, sample_nr)
+                FPS = FitParamsWrapper.load_fit(fit_name, self.experiment.fit_file_name)
+
+                if FPS.avg_node_fit_time is not None:
+                    avg_fit_times[sample_nr, batch_nr] = FPS.avg_node_fit_time
+        return avg_fit_times
 
     def get_fit_sparsities_and_symms(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         symm_nonzero = np.zeros((self.experiment.samples_per_batch, self.nr_batches))
@@ -335,5 +346,14 @@ class StatsGenerator():
                                ys_errors=[np.std(nr_iterations, axis=0)],
                                x_name=x_name,
                                y_name='Average iterations',
+                               plot_title=plot_title,
+                               labels=[])
+
+        avg_node_fit_times = self.get_avg_node_fit_times()
+        self.plot_ys_common_xs(xs=xs,
+                               list_ys=[np.mean(avg_node_fit_times, axis=0)],
+                               ys_errors=[np.std(avg_node_fit_times, axis=0)],
+                               x_name=x_name,
+                               y_name='Average fit times',
                                plot_title=plot_title,
                                labels=[])
