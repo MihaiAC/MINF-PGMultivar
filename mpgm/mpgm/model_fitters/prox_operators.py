@@ -46,7 +46,8 @@ class QuadProgOperator(ProxOperator):
 
         # The order of operations is: C -> -C -> (C, -C) -> add one row to it, ensuring positivity of beta aka a
         # row of -1s; d is 2n x 1 of 0s.
-        C = data_points
+        C = np.copy(data_points)
+        C[:, node] = 1
         xC, yC = C.shape
         C = -C  # Since we want our ineq to be greater than or equal to zero.
         G = np.hstack([C, -C])
