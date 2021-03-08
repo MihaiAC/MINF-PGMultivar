@@ -1,3 +1,5 @@
+import time
+
 from mpgm.mpgm.model_fitters.prox_grad_fitters import *
 from mpgm.mpgm.evaluation.generating_samples import SampleParamsWrapper, SampleParamsSave
 from sqlitedict import SqliteDict
@@ -23,6 +25,7 @@ class FitParamsSave():
 
         self.model = (None, None)
         self.fitter = (None, None)
+        self.fit_time = None
 
         self.preprocessor = None
 
@@ -136,11 +139,13 @@ class FitParamsWrapper():
         if self.FPS.preprocessor is not None:
             self.FPS.preprocessor.preprocess(samples)
 
+        fit_start_time = time.time()
         fit_results = self.fitter.call_fit_node(nll=self.model.calculate_nll,
                                                 grad_nll=self.model.calculate_grad_nll,
                                                 data_points=samples,
                                                 theta_init=self.FPS.theta_init,
                                                 parallelize=parallelize)
+        self.FPS.fit_time = time.time() - fit_start_time
 
         self.model.theta = fit_results[0]
         self.model = self.model # Update FPS' model.
@@ -154,6 +159,7 @@ class FitParamsWrapper():
 
         fits_dict = SqliteDict('./' + fit_file_name, autocommit=True)
         fits_dict[fit_id] = self.FPS
+        fits_dict.commit()
         fits_dict.close()
 
         return theta_final
