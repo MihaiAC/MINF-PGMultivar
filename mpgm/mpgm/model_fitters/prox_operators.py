@@ -43,6 +43,7 @@ class QuadProgOperator(ProxOperator):
         v = objective.reshape((n, 1))
         alpha = reg_parameter
         q = alpha * np.ones((2 * n, 1)) - np.vstack([v, -v])
+        q = q.reshape((2*n, ))
 
         # The order of operations is: C -> -C -> (C, -C) -> add one row to it, ensuring positivity of beta aka a
         # row of -1s; d is 2n x 1 of 0s.
@@ -52,11 +53,20 @@ class QuadProgOperator(ProxOperator):
         C = -C  # Since we want our ineq to be greater than or equal to zero.
         G = np.hstack([C, -C])
 
-        # Not sure if this will work.
-        G = np.vstack([G, -np.ones((1, 2 * yC))])
-        G = QuadProgOperator.remove_dependent_rows(G)
+        # The following line doesn't work. Appending ones will sum up beta+, beta-.
+        # While we want to enforce every element of beta+ and beta- being greater than 0.
+        # We must append the identity matrix, not an array of 1s.
 
-        h = np.zeros((G.shape[0], 1))
+        # Wrong:
+        # G = np.vstack([G, -np.ones((1, 2 * yC))])
+
+        # Correct:
+        G = np.vstack([G, -np.identity(2*yC)])
+
+        # Removing dependent rows means that we would lose some useful constraints.
+        # G = QuadProgOperator.remove_dependent_rows(G)
+
+        h = np.zeros((G.shape[0], ))
 
         P = np.zeros((2 * n, 2 * n))
         P[0:n, 0:n] = np.identity(n)
@@ -64,20 +74,20 @@ class QuadProgOperator(ProxOperator):
         P[0:n, n:2 * n] = -np.identity(n)
         P[n:2 * n, n:2 * n] = np.identity(n)
 
-        if self.constraint_solver == 'cvxopt':
-            P = cvxopt.matrix(P, tc='d')
-            q = cvxopt.matrix(q, tc='d')
-            G = cvxopt.matrix(G, tc='d')
-            h = cvxopt.matrix(h, tc='d')
-            solution = cvxopt.solvers.qp(P, q, G, h, kktsolver='ldl', options={'kktreg': 1e-9, 'show_progress': False,
-                                                                               'maxiters': 500})
+        # if self.constraint_solver == 'cvxopt':
+        #     P = cvxopt.matrix(P, tc='d')
+        #     q = cvxopt.matrix(q, tc='d')
+        #     G = cvxopt.matrix(G, tc='d')
+        #     h = cvxopt.matrix(h, tc='d')
+        #     solution = cvxopt.solvers.qp(P, q, G, h, kktsolver='ldl', options={'kktreg': 1e-9, 'show_progress': False,
+        #                                                                        'maxiters': 500})
+        #
+        #     beta_2n = np.array(solution['x']).reshape((2 * n,))
+        #     beta = beta_2n[:n] - beta_2n[n:]
+        #
+        #     return beta
 
-            beta_2n = np.array(solution['x']).reshape((2 * n,))
-            beta = beta_2n[:n] - beta_2n[n:]
-
-            return beta
-
-        elif self.constraint_solver == 'qpoases':
+        if self.constraint_solver == 'qpoases':
             solution = qpsolvers.qpoases_solve_qp(P, q, G, h)
 
             beta_2n = solution.reshape((2 * n,))
@@ -139,14 +149,15 @@ class AdmmOperator(ProxOperator):
 
         f_operator = partial(soft_thresh_op.prox,
                              reg_parameter=new_reg_parameter,
-                             node=node)
+                             node=node,
+                             data_points=data_points)
 
         g_operator = partial(scipy.optimize.minimize,
                              method="SLSQP",
                              constraints=AdmmOperator.construct_constraints(data_points, node))
 
         # Found bug: this flavor of ADMM makes x converge to -z.
-        # Since z is the result of g_operator, keeping constraints true for x, means
+        # Since z is the result of g_operator, keeping constraints true for x, means.
         # multiplying them by -1 to keep them true for z (if it makes sense).
 
         iteration = 0

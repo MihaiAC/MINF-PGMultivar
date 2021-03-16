@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import multiprocessing
-from prox_operators import SoftThreshold, QuadProgOperator, AdmmOperator
+from mpgm.mpgm.model_fitters.prox_operators import SoftThreshold, QuadProgOperator, AdmmOperator
 from typing import Callable, Optional, Iterator, Any, Tuple, List
 
 class Prox_Grad_Fitter():
@@ -151,8 +151,6 @@ class Prox_Grad_Fitter():
         step_size_k = self.init_step_size
 
         regularization_paths = []
-        if self.save_regularization_paths:
-            regularization_paths.append(list(theta_node_init))
 
         z = np.zeros(np.size(theta_node_init))
         f_z = 0
@@ -160,7 +158,7 @@ class Prox_Grad_Fitter():
         for k in range(self.max_iter):
             theta_k = self.update_fit_params(k, theta_k_1, theta_k_2, node, step_size_k * self.alpha, data_points)
 
-            if self.save_regularization_paths:
+            if self.save_regularization_paths and self.accelerated:
                 regularization_paths.append(list(theta_k))
 
             f_theta_k = f_nll(node, data_points, theta_k)
@@ -173,7 +171,14 @@ class Prox_Grad_Fitter():
                 threshold = step_size_k * self.alpha
                 z = self.prox_operator.prox(objective=candidate_new_theta_k,
                                             reg_parameter=threshold,
-                                            node=node)
+                                            node=node,
+                                            data_points=data_points)
+
+                # TODO: Could use this as a gradient alert of some sort?
+                # if self.save_regularization_paths:
+                #     regularization_paths.append(list(z))
+                #     if np.sum(z)/len(z) >= 0.5:
+                #         print("Node: " + str(node) + "; Iteration: " + str(k) + "; Gradients: " + str(grad_f_theta_k))
 
                 f_tilde = f_theta_k + np.dot(grad_f_theta_k, z-theta_k) + (1/(2 * step_size_k)) * np.sum((z-theta_k) ** 2)
                 f_z = f_nll(node, data_points, z)
@@ -209,7 +214,7 @@ class Prox_Grad_Fitter():
 
             else:
                 converged = False
-                print('\nProx grad failed to converge for node ' + str(node))
+                print('\nLine search failed for node: ' + str(node))
                 break
 
         self.data_points = None
@@ -240,17 +245,17 @@ class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
                          beta, rel_tol, abs_tol, early_stop_criterion, minimum_iterations_until_early_stop,
                          save_regularization_paths)
 
-        constraint_solvers = ['cvxopt', 'qpoases', 'osqp', 'admm', 'none']
+        constraint_solvers = ['qpoases', 'osqp', 'admm']
         assert constraint_solver in constraint_solvers, "Constraint solver not recognised: " + str(constraint_solver) +\
                                                         ". Choose one of: " + str(constraint_solvers) + "."
 
-        if constraint_solver in ['cvxopt', 'qpoases', 'osqp']:
+        if constraint_solver in ['qpoases', 'osqp']:
             self.prox_operator = QuadProgOperator(constraint_solver)
         elif constraint_solver == 'admm':
             self.prox_operator = AdmmOperator(tau=admm_tau,
                                               min_iter=admm_min_iter,
                                               max_iter=admm_max_iter)
-        elif constraint_solver == 'none':
+        else:
             self.prox_operator = SoftThreshold()
 
     # A matrix' row rank is equal to its column rank.
