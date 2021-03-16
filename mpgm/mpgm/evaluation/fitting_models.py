@@ -116,8 +116,12 @@ class FitParamsWrapper():
         self._fitter = value
         self.FPS.fitter = (type(value).__name__, vars(value))
 
-    def fit_model_and_save(self, fit_id:str, fit_file_name:str, parallelize:Optional[bool]=True,
-                           samples_file_name:Optional[str]=None, samples_id:Optional[str]=None,
+    def fit_model_and_save(self,
+                           fit_id:str,
+                           fit_file_name:str,
+                           parallelize:Optional[bool]=True,
+                           samples_file_name:Optional[str]=None,
+                           samples_id:Optional[str]=None,
                            theta_init:Optional[np.ndarray]=None):
         if samples_file_name is not None:
             self.FPS.samples_file_name = samples_file_name
@@ -128,11 +132,11 @@ class FitParamsWrapper():
         SPS = SampleParamsWrapper.load_samples(self.FPS.samples_id, self.FPS.samples_file_name)
         samples = SPS.samples
 
-        if theta_init is None or self.FPS.theta_init is None:
+        if theta_init is None and self.FPS.theta_init is None:
             nr_variables = samples.shape[1]
             self.FPS.theta_init = np.random.normal(0, 0.001, (nr_variables, nr_variables))
         else:
-            assert samples.shape[1] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
+            assert samples.shape[0] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
                    "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
             self.FPS.theta_init = theta_init
 
@@ -162,7 +166,7 @@ class FitParamsWrapper():
         fits_dict.commit()
         fits_dict.close()
 
-        return theta_final
+        return self.FPS.theta_fit
 
     @staticmethod
     def load_fit(fit_id:str, sqlite_file_name:str) -> FitParamsSave:
