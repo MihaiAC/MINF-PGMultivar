@@ -16,7 +16,8 @@ from itertools import cycle
 # Should remember the IDs of the samples it generated and model it fit.
 class Experiment():
     def __init__(self, experiment_name: str, random_seeds: List[int], SPW: SampleParamsWrapper,
-                 samples_file_name:str, FPW:FitParamsWrapper, fit_file_name:str, vary_fit:Optional[bool]=False):
+                 samples_file_name:str, FPW:FitParamsWrapper, fit_file_name:str, vary_fit:Optional[bool]=False,
+                 fit_theta_init:Optional[np.ndarray]=None, fit_parallelize:Optional[bool]=True):
         self.experiment_name = experiment_name
         self.random_seeds = random_seeds
         self.samples_per_batch = len(random_seeds)
@@ -25,6 +26,8 @@ class Experiment():
         self.FPW = FPW
         self.fit_file_name = fit_file_name
         self.vary_fit = vary_fit
+        self.fit_parallelize = fit_parallelize
+        self.fit_theta_init = fit_theta_init
 
     def generate_batch_samples_vary_seed(self, batch_nr:int):
         for sample_nr in range(self.samples_per_batch):
@@ -68,9 +71,10 @@ class Experiment():
             fit_name = self.get_fit_name(batch_nr, sample_nr)
             self.FPW.fit_model_and_save(fit_id=fit_name,
                                         fit_file_name=self.fit_file_name,
-                                        parallelize=True,
+                                        parallelize=self.fit_parallelize,
                                         samples_file_name=self.samples_file_name,
-                                        samples_id=sample_name)
+                                        samples_id=sample_name,
+                                        theta_init=self.fit_theta_init)
             print(self.get_fit_name(batch_nr, sample_nr) + " finished fitting. Average iterations: " +
                   str(sg.get_avg_nr_iterations_fit(sample_nr, batch_nr)))
 
