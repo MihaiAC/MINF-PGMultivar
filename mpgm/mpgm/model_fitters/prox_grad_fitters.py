@@ -16,8 +16,9 @@ class Prox_Grad_Fitter():
                  rel_tol=1e-3,
                  abs_tol=1e-6,
                  early_stop_criterion='weight',
-                 minimum_iterations_until_early_stop=1,
-                 save_regularization_paths=False):
+                 minimum_iterations_until_early_stop=2,
+                 save_regularization_paths=False,
+                 keep_diags_zero=False):
         """
         Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
             package.
@@ -46,6 +47,7 @@ class Prox_Grad_Fitter():
         self.early_stop_criterion = early_stop_criterion
         self.minimum_iterations_until_early_stop = minimum_iterations_until_early_stop
         self.save_regularization_paths = save_regularization_paths
+        self.keep_diags_zero = keep_diags_zero
 
         self.prox_operator = SoftThreshold()
         assert minimum_iterations_until_early_stop > 0, "At least one iteration must pass until convergence is checked."
@@ -164,6 +166,9 @@ class Prox_Grad_Fitter():
             f_theta_k = f_nll(node, data_points, theta_k)
             grad_f_theta_k = f_grad_nll(node, data_points, theta_k)
 
+            if self.keep_diags_zero:
+                grad_f_theta_k[node] = 0
+
             found_step_size = False
 
             for _ in range(self.max_line_search_iter):
@@ -183,7 +188,7 @@ class Prox_Grad_Fitter():
                 f_tilde = f_theta_k + np.dot(grad_f_theta_k, z-theta_k) + (1/(2 * step_size_k)) * np.sum((z-theta_k) ** 2)
                 f_z = f_nll(node, data_points, z)
 
-                if self.check_line_search_condition_simple(f_z, f_tilde):
+                if self.check_line_search_condition_closeto(f_z, f_tilde):
                     found_step_size = True
                     break
                 else:
@@ -238,12 +243,13 @@ class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
                  early_stop_criterion='weight',
                  minimum_iterations_until_early_stop=1,
                  save_regularization_paths=False,
+                 keep_diags_zero=False,
                  admm_tau: Optional[float] = 0.1,
                  admm_min_iter: Optional[int] = 100,
                  admm_max_iter: Optional[int] = 1000):
         super().__init__(alpha, accelerated, max_iter, max_line_search_iter, line_search_rel_tol, init_step_size,
                          beta, rel_tol, abs_tol, early_stop_criterion, minimum_iterations_until_early_stop,
-                         save_regularization_paths)
+                         save_regularization_paths, keep_diags_zero)
 
         constraint_solvers = ['qpoases', 'osqp', 'admm']
         assert constraint_solver in constraint_solvers, "Constraint solver not recognised: " + str(constraint_solver) +\
