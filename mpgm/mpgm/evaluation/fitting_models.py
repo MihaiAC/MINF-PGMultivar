@@ -136,7 +136,9 @@ class FitParamsWrapper():
             nr_variables = samples.shape[1]
             self.FPS.theta_init = np.random.normal(0, 0.001, (nr_variables, nr_variables))
         else:
-            assert samples.shape[0] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
+            # samples array should have dims (nr_samples, nr_variables);
+            # params array should have dims (nr_variables, nr_variables);
+            assert samples.shape[1] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
                    "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
             self.FPS.theta_init = theta_init
 

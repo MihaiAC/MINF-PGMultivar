@@ -67,10 +67,10 @@ class SampleParamsSave():
 class SampleParamsWrapper():
     def __init__(self, nr_variables:int, nr_samples:int, random_seed:int, sample_init:np.array):
         self.SPS = SampleParamsSave()
-        self.SPS.nr_variables = nr_variables
-        self.SPS.nr_samples = nr_samples
-        self.SPS.random_seed = random_seed
-        self.SPS.samples_init = sample_init
+        self.nr_variables = nr_variables
+        self.nr_samples = nr_samples
+        self.random_seed = random_seed
+        self.samples_init = sample_init
 
         self._graph_generator = None
         self._weight_assigner = None
@@ -147,16 +147,18 @@ class SampleParamsWrapper():
 
     def generate_samples_and_save(self, sample_id:str, sqlite_file_name:str):
         np.random.seed(self.random_seed)
-        graph = self.graph_generator.generate_graph(self.SPS.nr_variables)
+        graph = self.graph_generator.generate_graph(self.nr_variables)
         self.weight_assigner.assign_weights(graph)
 
         self.model.theta = graph
         self.model = self.model
 
-        self.SPS.samples = self.sampler.generate_samples(self.model, self.SPS.samples_init, self.SPS.nr_samples)
+        self.SPS.samples = self.sampler.generate_samples(self.model, self.samples_init, self.nr_samples)
+        print('Generated samples: ' + sample_id)
 
-        samples_dict = SqliteDict('./' + sqlite_file_name, autocommit=True)
+        samples_dict = SqliteDict('./' + sqlite_file_name)
         samples_dict[sample_id] = self.SPS
+        samples_dict.commit()
         samples_dict.close()
 
     @staticmethod
@@ -176,7 +178,7 @@ if __name__ == "__main__":
 
     SGW.graph_generator = HubGraphGenerator(nr_hubs=1)
     SGW.weight_assigner = Dummy_Weight_Assigner()
-    SGW.model = Model(theta = None)
+    SGW.model = Model(theta = np.array([0]))
     SGW.sampler = SIPRVSampler(lambda_true=1, lambda_noise=0.5)
 
     SGW.generate_samples_and_save("TestSIPRV", sqlite_file_name)
