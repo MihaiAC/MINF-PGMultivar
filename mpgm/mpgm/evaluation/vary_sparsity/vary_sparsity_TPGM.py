@@ -73,5 +73,5 @@ if __name__ == '__main__':
     experiment.fit_all_samples_same_FPW(len(edges_nrs))
 
     stats_gen = StatsGenerator(experiment, "sample_sparsity", sparsities)
-    stats_gen.plot_ys_common_xs_ALL("nr_variables=10, alpha=3.2, SIPRV, weight", "sample_sparsity", sparsities)
+    stats_gen.plot_ALL("nr_variables=10, alpha=3.2, SIPRV, weight", "sample_sparsity", sparsities)
     # Don't forget to upgrade the title of the graph.

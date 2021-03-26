@@ -66,4 +66,4 @@ if __name__ == '__main__':
     stats_gen = StatsGenerator(experiment, "samples", samples_numbers)
 
     # This should be updated to 0.1 (alpha).
-    stats_gen.plot_ys_common_xs_ALL("nr_variables=10, alpha=0.5, SIPRV, weight", "nr_samples", samples_numbers)
+    stats_gen.plot_ALL("nr_variables=10, alpha=0.5, SIPRV, weight", "nr_samples", samples_numbers)
