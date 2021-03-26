@@ -11,7 +11,7 @@ from mpgm.mpgm.evaluation.evaluation import StatsGenerator
 from mpgm.mpgm.evaluation.evaluation_metrics import EvalMetrics
 
 from mpgm.mpgm.evaluation.preprocessing import ClampMax
-from mpgm.mpgm.models.PGM import PGM
+from mpgm.mpgm.models.QPGM import QPGM
 
 import matplotlib.pyplot as plt
 
@@ -23,7 +23,7 @@ def vary_alpha(FPW: FitParamsWrapper, alpha:int):
 
 samples_file_name = "../samples.sqlite"
 fit_file_name = "../fit_models.sqlite"
-experiment_base_name = Experiment.generate_experiment_name('SPGM',
+experiment_base_name = Experiment.generate_experiment_name('QPGM',
                                                            'random_graph',
                                                            'TPGM',
                                                            'vary_alpha',
@@ -32,8 +32,8 @@ experiment_base_name = Experiment.generate_experiment_name('SPGM',
                                                            )
 nr_variables = 10
 nr_samples = 150
-# alphas = [0.01, 0.05, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.6, 25.2, 50.4]
-alphas = list(np.linspace(1.6, 3.2, 10))
+alphas = [0.01, 0.05, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.6, 25.2, 50.4]
+# alphas = list(np.linspace(1.6, 3.2, 10))
 experiment_name = experiment_base_name + '_' + str(nr_variables) + '_variables'
 
 if __name__ == '__main__':
@@ -48,7 +48,7 @@ if __name__ == '__main__':
     #                                                        mean_2=-0.05,
     #                                                        std_2=0,
     #                                                        split=0.7)
-    SGW.weight_assigner = Constant_Weight_Assigner(0.2)
+    SGW.weight_assigner = Constant_Weight_Assigner(0.1)
     # SGW.weight_assigner = Dummy_Weight_Assigner()
     SGW.model = TPGM(R=10)
     # SGW.model = Model(theta=np.zeros((nr_samples, nr_variables)))
@@ -56,37 +56,37 @@ if __name__ == '__main__':
     # SGW.sampler = SIPRVSampler(lambda_true=1, lambda_noise=0.5)
 
     nr_batches = len(alphas)
-
     FPW = FitParamsWrapper(random_seed=0,
                            samples_file_name=samples_file_name)
-    FPW.model = SPGM(R=10,
-                     R0=10)
+    FPW.model = QPGM(None)
 
-    # FPW.fitter = Constrained_Prox_Grad_Fitter(alpha=-1,
-    #                                           accelerated=True,
-    #                                           constraint_solver=None,
-    #                                           save_regularization_paths=False,
-    #                                           init_step_size=0.1,
-    #                                           early_stop_criterion='likelihood',
-    #                                           keep_diag_zero=True)
+    FPW.fitter = Constrained_Prox_Grad_Fitter(alpha=-1,
+                                              accelerated=True,
+                                              constraint_solver='qpgm_soft',
+                                              save_regularization_paths=False,
+                                              init_step_size=0.1,
+                                              early_stop_criterion='likelihood',
+                                              keep_diag_zero=True)
     # FPW.fitter = Prox_Grad_Fitter(alpha=-1,
     #                               accelerated=True,
     #                               save_regularization_paths=False,
     #                               early_stop_criterion='likelihood',
     #                               init_step_size=0.1,
     #                               keep_diag_zero=True)
-    FPW.fitter = Pseudo_Likelihood_Prox_Grad_Fitter(alpha=-1,
-                                                    accelerated=True,
-                                                    constraint_solver='soft',
-                                                    save_regularization_paths=False,
-                                                    early_stop_criterion='likelihood',
-                                                    init_step_size=1,
-                                                    keep_diag_zero=True)
-    # FPW.preprocessor = ClampMax(10)
+    # FPW.fitter = Pseudo_Likelihood_Prox_Grad_Fitter(alpha=-1,
+    #                                                 accelerated=True,
+    #                                                 constraint_solver='qpgm_soft',
+    #                                                 save_regularization_paths=False,
+    #                                                 early_stop_criterion='likelihood',
+    #                                                 init_step_size=1,
+    #                                                 keep_diag_zero=True)
+    # # FPW.preprocessor = ClampMax(10)
 
     theta_init = np.random.normal(0, 0.1, (nr_variables, nr_variables))
     theta_init[np.tril_indices(nr_variables)] = 0
     theta_init = theta_init + theta_init.T
+    theta_quad = (-0.1) * np.ones((nr_variables, 1))
+    theta_init = np.hstack([theta_init, theta_quad])
 
     experiment = Experiment(experiment_name=experiment_name,
                             random_seeds=list(range(5)),

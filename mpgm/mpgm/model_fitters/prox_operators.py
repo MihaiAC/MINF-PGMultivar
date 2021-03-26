@@ -28,6 +28,23 @@ class SoftThreshold(ProxOperator):
         obj_minus = objective + reg_parameter
         return obj_plus * (obj_plus > 0) + obj_minus * (obj_minus < 0)
 
+class QPGM_SoftThreshold(ProxOperator):
+    def __init__(self, qpgm_qtc):
+        super().__init__()
+        self.qpgm_qtc = qpgm_qtc
+        self.constraint_solver = 'qpgm_soft'
+
+    def prox(self, objective:np.ndarray, reg_parameter:float, node:int, data_points:np.ndarray,
+             keep_diag_zero:bool) -> np.ndarray:
+        quad_param = objective[-1]
+        obj_plus = objective - reg_parameter
+        obj_minus = objective + reg_parameter
+        soft_thresholded_obj = obj_plus * (obj_plus > 0) + obj_minus * (obj_minus < 0)
+        if quad_param > -1/self.qpgm_qtc:
+            soft_thresholded_obj[-1] = -1/self.qpgm_qtc
+        else:
+            soft_thresholded_obj[-1] = quad_param
+        return soft_thresholded_obj
 
 class QuadProgOperator(ProxOperator):
     def __init__(self, constraint_solver: str):

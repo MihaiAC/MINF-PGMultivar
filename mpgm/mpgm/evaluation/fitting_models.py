@@ -138,7 +138,7 @@ class FitParamsWrapper():
         else:
             # samples array should have dims (nr_samples, nr_variables);
             # params array should have dims (nr_variables, nr_variables);
-            assert samples.shape[1] == theta_init.shape[0] and samples.shape[1] == theta_init.shape[1], \
+            assert samples.shape[1] == theta_init.shape[0], \
                    "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
             self.FPS.theta_init = theta_init
 

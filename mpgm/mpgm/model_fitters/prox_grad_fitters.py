@@ -1,7 +1,7 @@
 import time
 import numpy as np
 import multiprocessing
-from mpgm.mpgm.model_fitters.prox_operators import SoftThreshold, QuadProgOperator, AdmmOperator
+from mpgm.mpgm.model_fitters.prox_operators import SoftThreshold, QuadProgOperator, AdmmOperator, QPGM_SoftThreshold
 from typing import Callable, Optional, Iterator, Any, Tuple, List
 
 class Prox_Grad_Fitter():
@@ -247,7 +247,8 @@ class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
                  keep_diag_zero=False,
                  admm_tau: Optional[float] = 0.1,
                  admm_min_iter: Optional[int] = 100,
-                 admm_max_iter: Optional[int] = 1000):
+                 admm_max_iter: Optional[int] = 1000,
+                 qpgm_qtc: Optional[float] = 1e4):
         super().__init__(alpha, accelerated, max_iter, max_line_search_iter, line_search_rel_tol, init_step_size,
                          beta, rel_tol, abs_tol, early_stop_criterion, minimum_iterations_until_early_stop,
                          save_regularization_paths, keep_diag_zero)
@@ -257,6 +258,8 @@ class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
             self.prox_operator = AdmmOperator(tau=admm_tau,
                                               min_iter=admm_min_iter,
                                               max_iter=admm_max_iter)
+        elif constraint_solver == 'qpgm_soft':
+            self.prox_operator = QPGM_SoftThreshold(qpgm_qtc)
         else:
             self.prox_operator = SoftThreshold()
 
@@ -331,7 +334,11 @@ class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
                 nr_nodes = params.shape[0]
                 for node in range(nr_nodes):
                     return_params[node, :] = self.prox_operator.prox(params[node, :], reg_parameter, node, data_points, self.keep_diag_zero)
-                return_params = (return_params + return_params.T)/2
+                if self.prox_operator.constraint_solver == 'qpgm_soft':
+                    return_params[0:nr_nodes, 0:nr_nodes] = (return_params[0:nr_nodes, 0:nr_nodes] +
+                                                             return_params[0:nr_nodes, 0:nr_nodes].T)/2
+                else:
+                    return_params = (return_params + return_params.T)/2
                 return return_params
         else:
             params = prev_params
@@ -365,13 +372,13 @@ class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
 
         nr_nodes = data_points.shape[1]
 
-        theta_k_2 = np.zeros((nr_nodes, nr_nodes))
+        theta_k_2 = np.zeros(theta_init.shape)
         theta_k_1 = np.copy(theta_init)
         step_size_k = self.init_step_size
 
         regularization_paths = []
 
-        z = np.zeros((nr_nodes, nr_nodes))
+        z = np.zeros(theta_init.shape)
         f_z = 0
 
         for k in range(self.max_iter):
@@ -381,7 +388,7 @@ class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
                 regularization_paths.append(theta_k)
 
             f_theta_k = 0
-            grad_f_theta_k = np.zeros((nr_nodes, nr_nodes))
+            grad_f_theta_k = np.zeros(theta_init.shape)
             for node in range(nr_nodes):
                 f_theta_k += f_nll(node, data_points, theta_k[node, :])
                 grad_f_theta_k[node, :] = f_grad_nll(node, data_points, theta_k[node, :])
@@ -392,21 +399,21 @@ class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
             found_step_size = False
 
             # Make grad_f_theta_k symmetric.
-            grad_f_theta_k = grad_f_theta_k + grad_f_theta_k.T
+            grad_f_theta_k[0:nr_nodes, 0:nr_nodes] = grad_f_theta_k[0:nr_nodes, 0:nr_nodes] + grad_f_theta_k[0:nr_nodes, 0:nr_nodes].T
 
             # Only prox operator it works with at the moment is Soft Thresholding.
             for _ in range(self.max_line_search_iter):
                 candidate_new_theta_k = theta_k - step_size_k * grad_f_theta_k
                 threshold = step_size_k * self.alpha
 
-                z = np.zeros((nr_nodes, nr_nodes))
+                z = np.zeros(theta_init.shape)
                 for node in range(nr_nodes):
                     z[node, :] = self.prox_operator.prox(objective=candidate_new_theta_k[node, :],
                                                          reg_parameter=threshold,
                                                          node=node,
                                                          data_points=data_points,
                                                          keep_diag_zero=self.keep_diag_zero)
-                z = (z + z.T)/2
+                z[0:nr_nodes, 0:nr_nodes] = (z[0:nr_nodes, 0:nr_nodes] + z[0:nr_nodes, 0:nr_nodes].T)/2
 
                 # Need to correct how these are calculated yo.
                 first_term = f_theta_k

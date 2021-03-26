@@ -182,10 +182,15 @@ class EvalMetrics():
         return MSE/N, diag_MSE/diag_N
 
     @staticmethod
-    def calculate_percentage_symmetric_signs(matrix:np.ndarray) -> float:
-        N, M = matrix.shape
-        assert N == M, str("calculate_percentage_symmetric_signs: input matrix should be square; has dimensions " +
-                           str((N,M)) + " instead")
+    def calculate_percentage_symmetric_signs(input_matrix:np.ndarray) -> float:
+        N, M = input_matrix.shape
+        if M == N+1:
+            matrix = np.copy(input_matrix)
+            matrix = matrix[0:N, 0:N]
+        else:
+            assert N == M, str("calculate_percentage_symmetric_signs: input matrix should be square; has dimensions " +
+                               str((N,M)) + " instead")
+            matrix = np.copy(input_matrix)
 
         nr_values = N * (N-1) / 2
         nr_symmetric_signs = 0
@@ -197,10 +202,15 @@ class EvalMetrics():
         return nr_symmetric_signs/nr_values
 
     @staticmethod
-    def calculate_percentage_symmetric_values(matrix:np.ndarray, threshold:Optional[float]=1e-6) -> float:
-        N, M = matrix.shape
-        assert N == M, str("calculate_percentage_symmetric_values: input matrix should be square; has dimensions " +
-                           str((N,M)) + " instead")
+    def calculate_percentage_symmetric_values(input_matrix:np.ndarray, threshold:Optional[float]=1e-6) -> float:
+        N, M = input_matrix.shape
+        if M == N + 1:
+            matrix = np.copy(input_matrix)
+            matrix = matrix[0:N, 0:N]
+        else:
+            assert N == M, str("calculate_percentage_symmetric_signs: input matrix should be square; has dimensions " +
+                               str((N, M)) + " instead")
+            matrix = np.copy(input_matrix)
 
         nr_values = N * (N-1) / 2
         nr_symmetric_values = 0
@@ -212,10 +222,15 @@ class EvalMetrics():
         return nr_symmetric_values/nr_values
 
     @staticmethod
-    def calculate_percentage_symmetric_nonzero(matrix:np.ndarray, threshold:Optional[float]=0) -> float:
-        N, M = matrix.shape
-        assert N == M, str("calculate_percentage_symmetric_nonzero: input matrix should be square; has dimensions " +
-                           str((N, M)) + " instead")
+    def calculate_percentage_symmetric_nonzero(input_matrix:np.ndarray, threshold:Optional[float]=0) -> float:
+        N, M = input_matrix.shape
+        if M == N + 1:
+            matrix = np.copy(input_matrix)
+            matrix = matrix[0:N, 0:N]
+        else:
+            assert N == M, str("calculate_percentage_symmetric_signs: input matrix should be square; has dimensions " +
+                               str((N, M)) + " instead")
+            matrix = np.copy(input_matrix)
 
         nr_values = N * (N-1) / 2
         nr_symmetric_binary_values = 0
@@ -230,10 +245,15 @@ class EvalMetrics():
         return nr_symmetric_binary_values/nr_values
 
     @staticmethod
-    def calculate_percentage_sparsity(matrix:np.ndarray, threshold:Optional[float]=0) -> float:
-        N, M = matrix.shape
-        assert N == M, str("calculate_percentage_symmetric_values: input matrix should be square; has dimensions " +
-                           str((N, M)) + " instead")
+    def calculate_percentage_sparsity(input_matrix:np.ndarray, threshold:Optional[float]=0) -> float:
+        N, M = input_matrix.shape
+        if M == N + 1:
+            matrix = np.copy(input_matrix)
+            matrix = matrix[0:N, 0:N]
+        else:
+            assert N == M, str("calculate_percentage_symmetric_signs: input matrix should be square; has dimensions " +
+                               str((N, M)) + " instead")
+            matrix = np.copy(input_matrix)
 
         nr_params = N * (N - 1)
         nr_zero_params = 0
