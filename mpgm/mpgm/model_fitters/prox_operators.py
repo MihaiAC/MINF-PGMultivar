@@ -12,15 +12,18 @@ class ProxOperator:
     def __init__(self):
         pass
 
-    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray) -> np.ndarray:
+    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray,
+             keep_diag_zero: bool) -> np.ndarray:
         pass
 
 
 class SoftThreshold(ProxOperator):
     def __init__(self):
         super().__init__()
+        self.constraint_solver = 'soft'
 
-    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray) -> np.ndarray:
+    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray,
+             keep_diag_zero: bool) -> np.ndarray:
         obj_plus = objective - reg_parameter
         obj_minus = objective + reg_parameter
         return obj_plus * (obj_plus > 0) + obj_minus * (obj_minus < 0)
@@ -37,7 +40,8 @@ class QuadProgOperator(ProxOperator):
         B = A[list(ind_rows)]
         return B
 
-    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray) -> np.ndarray:
+    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray,
+             keep_diag_zero: bool) -> np.ndarray:
         n = len(objective)
 
         v = objective.reshape((n, 1))
@@ -48,7 +52,10 @@ class QuadProgOperator(ProxOperator):
         # The order of operations is: C -> -C -> (C, -C) -> add one row to it, ensuring positivity of beta aka a
         # row of -1s; d is 2n x 1 of 0s.
         C = np.copy(data_points)
-        C[:, node] = 1
+        if keep_diag_zero:
+            C[:, node] = 0
+        else:
+            C[:, node] = 1
         xC, yC = C.shape
         C = -C  # Since we want our ineq to be greater than or equal to zero.
         G = np.hstack([C, -C])
@@ -115,6 +122,7 @@ class AdmmOperator(ProxOperator):
         self.tau = tau
         self.min_iter = min_iter
         self.max_iter = max_iter
+        self.constraint_solver = 'admm'
 
     @staticmethod
     def l2norm(x: np.ndarray, objective: np.ndarray, reg_param: float) -> float:
@@ -126,9 +134,12 @@ class AdmmOperator(ProxOperator):
         return (x - objective) / reg_param
 
     @staticmethod
-    def construct_constraints(data: np.ndarray, node: int):
+    def construct_constraints(data: np.ndarray, node: int, keep_diag_zero: bool):
         A = np.copy(data)
-        A[:, node] = 1
+        if keep_diag_zero:
+            A[:, node] = 0
+        else:
+            A[:, node] = 1
         constraints = scipy.optimize.LinearConstraint(A, 0, np.inf, keep_feasible=False)
         return constraints
 
@@ -138,7 +149,8 @@ class AdmmOperator(ProxOperator):
         all_converged = all(converged_params)
         return all_converged
 
-    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray) -> np.ndarray:
+    def prox(self, objective: np.ndarray, reg_parameter: float, node: int, data_points: np.ndarray,
+             keep_diag_zero: bool) -> np.ndarray:
         n = len(objective)
         u = np.zeros((n,))
         z = np.copy(objective)
@@ -154,7 +166,7 @@ class AdmmOperator(ProxOperator):
 
         g_operator = partial(scipy.optimize.minimize,
                              method="SLSQP",
-                             constraints=AdmmOperator.construct_constraints(data_points, node))
+                             constraints=AdmmOperator.construct_constraints(data_points, node, keep_diag_zero))
 
         # Found bug: this flavor of ADMM makes x converge to -z.
         # Since z is the result of g_operator, keeping constraints true for x, means.

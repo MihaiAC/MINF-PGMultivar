@@ -18,7 +18,7 @@ class Prox_Grad_Fitter():
                  early_stop_criterion='weight',
                  minimum_iterations_until_early_stop=2,
                  save_regularization_paths=False,
-                 keep_diags_zero=False):
+                 keep_diag_zero=False):
         """
         Proximal gradient descent for solving the l1-regularized node-wise regressions required to fit some models in this
             package.
@@ -47,7 +47,7 @@ class Prox_Grad_Fitter():
         self.early_stop_criterion = early_stop_criterion
         self.minimum_iterations_until_early_stop = minimum_iterations_until_early_stop
         self.save_regularization_paths = save_regularization_paths
-        self.keep_diags_zero = keep_diags_zero
+        self.keep_diag_zero = keep_diag_zero
 
         self.prox_operator = SoftThreshold()
         assert minimum_iterations_until_early_stop > 0, "At least one iteration must pass until convergence is checked."
@@ -166,7 +166,7 @@ class Prox_Grad_Fitter():
             f_theta_k = f_nll(node, data_points, theta_k)
             grad_f_theta_k = f_grad_nll(node, data_points, theta_k)
 
-            if self.keep_diags_zero:
+            if self.keep_diag_zero:
                 grad_f_theta_k[node] = 0
 
             found_step_size = False
@@ -177,7 +177,8 @@ class Prox_Grad_Fitter():
                 z = self.prox_operator.prox(objective=candidate_new_theta_k,
                                             reg_parameter=threshold,
                                             node=node,
-                                            data_points=data_points)
+                                            data_points=data_points,
+                                            keep_diag_zero=self.keep_diag_zero)
 
                 # TODO: Could use this as a gradient alert of some sort?
                 # if self.save_regularization_paths:
@@ -241,20 +242,15 @@ class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
                  rel_tol=1e-3,
                  abs_tol=1e-6,
                  early_stop_criterion='weight',
-                 minimum_iterations_until_early_stop=1,
+                 minimum_iterations_until_early_stop=2,
                  save_regularization_paths=False,
-                 keep_diags_zero=False,
+                 keep_diag_zero=False,
                  admm_tau: Optional[float] = 0.1,
                  admm_min_iter: Optional[int] = 100,
                  admm_max_iter: Optional[int] = 1000):
         super().__init__(alpha, accelerated, max_iter, max_line_search_iter, line_search_rel_tol, init_step_size,
                          beta, rel_tol, abs_tol, early_stop_criterion, minimum_iterations_until_early_stop,
-                         save_regularization_paths, keep_diags_zero)
-
-        constraint_solvers = ['qpoases', 'osqp', 'admm']
-        assert constraint_solver in constraint_solvers, "Constraint solver not recognised: " + str(constraint_solver) +\
-                                                        ". Choose one of: " + str(constraint_solvers) + "."
-
+                         save_regularization_paths, keep_diag_zero)
         if constraint_solver in ['qpoases', 'osqp']:
             self.prox_operator = QuadProgOperator(constraint_solver)
         elif constraint_solver == 'admm':
@@ -278,8 +274,186 @@ class Constrained_Prox_Grad_Fitter(Prox_Grad_Fitter):
             w_k = iteration / (iteration + 3)
             params = prev_params + w_k * (prev_params - penultimate_params)
             # Need to project this to a point; sparsity is not as important here.
-            if iteration != 0:
-                params = self.prox_operator.prox(params, reg_parameter, node, data_points)
+            if iteration != 0 and self.prox_operator.constraint_solver != 'soft':
+                params = self.prox_operator.prox(params, reg_parameter, node, data_points, self.keep_diag_zero)
         else:
             params = prev_params
         return params
+
+class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
+    def __init__(self,
+                 alpha,
+                 accelerated=True,
+                 constraint_solver='qpoases',
+                 max_iter=5000,
+                 max_line_search_iter=50,
+                 line_search_rel_tol=1e-4,
+                 init_step_size=1.0,
+                 beta=0.5,
+                 rel_tol=1e-3,
+                 abs_tol=1e-6,
+                 early_stop_criterion='weight',
+                 minimum_iterations_until_early_stop=1,
+                 save_regularization_paths=False,
+                 keep_diag_zero=False,
+                 admm_tau: Optional[float] = 0.1,
+                 admm_min_iter: Optional[int] = 100,
+                 admm_max_iter: Optional[int] = 1000
+                 ):
+        super().__init__(alpha, accelerated, constraint_solver, max_iter, max_line_search_iter, line_search_rel_tol,
+                         init_step_size, beta, rel_tol, abs_tol, early_stop_criterion,
+                         minimum_iterations_until_early_stop, save_regularization_paths, keep_diag_zero, admm_tau,
+                         admm_min_iter, admm_max_iter)
+
+    def call_fit_node(self, nll:Callable[[int, np.ndarray, np.ndarray], float],
+                      grad_nll:Callable[[int, np.ndarray, np.ndarray], np.ndarray],
+                      data_points:np.ndarray,
+                      theta_init:np.ndarray,
+                      parallelize:Optional[bool]=True) -> \
+            Tuple[np.ndarray, List[np.ndarray], List[bool], List[Any], List[np.ndarray], float]:
+
+        # TODO: Tomorrow: Do this -> test it -> QPGM test a few runs -> LPGM test a bit?
+
+        # Returned parameters differ from the parameters returned by the normal Prox_Grad.
+        # Since the first param is the same and the types match, it shouldn't pose a problem to the StatsGenerator
+        # class.
+        theta_fit, likelihoods, converged, conditions, regularization_path, elapsed_time = self.fit_all_nodes(nll, grad_nll, data_points, theta_init)
+        return theta_fit, [likelihoods], [converged], [conditions], [regularization_path], elapsed_time
+
+    def update_fit_params(self, iteration:int, prev_params:np.ndarray, penultimate_params:np.ndarray, node:int,
+                          reg_parameter:float, data_points:np.ndarray):
+        if self.accelerated:
+            w_k = iteration / (iteration + 3)
+            params = prev_params + w_k * (prev_params - penultimate_params)
+            # Need to project this to a point; sparsity is not as important here.
+            if iteration != 0 and self.prox_operator.constraint_solver != 'soft':
+                return_params = np.zeros(params.shape)
+                nr_nodes = params.shape[0]
+                for node in range(nr_nodes):
+                    return_params[node, :] = self.prox_operator.prox(params[node, :], reg_parameter, node, data_points, self.keep_diag_zero)
+                return_params = (return_params + return_params.T)/2
+                return return_params
+        else:
+            params = prev_params
+        return params
+
+    def check_params_convergence(self, iteration_nr, theta_k_1, theta_k_2):
+        if iteration_nr < self.minimum_iterations_until_early_stop:
+            return False
+        converged_params = (theta_k_1 - theta_k_2) ** 2 <= (self.rel_tol ** 2) * (theta_k_1 ** 2)
+        converged = converged_params.all()
+        return converged
+
+    # Method not used in this class, since we are fitting all the nodes at the same time.
+    def fit_node(self, node, f_nll, f_grad_nll, data_points, theta_init):
+        pass
+
+    def fit_all_nodes(self, f_nll, f_grad_nll, data_points, theta_init):
+        """
+        :param f_nll: calculates negative ll of node value given the other data_points.
+        :param f_grad_nll: calculates gradient of negative ll.
+        :param data_points: N x m matrix, N = number of points and m = number of nodes in the graph.
+        :param theta_init: m x m matrix; theta_init[node, :] must contain the initial guesses for the parameters fit here.
+        :return: (parameters which resulted from the method, list of lists of line search likelihoods,
+        bool which indicated if the method converged, not sure what this was)
+        """
+        start_time = time.time()
+
+        neg_log_likelihoods = []
+        conditions = []
+        converged = False
+
+        nr_nodes = data_points.shape[1]
+
+        theta_k_2 = np.zeros((nr_nodes, nr_nodes))
+        theta_k_1 = np.copy(theta_init)
+        step_size_k = self.init_step_size
+
+        regularization_paths = []
+
+        z = np.zeros((nr_nodes, nr_nodes))
+        f_z = 0
+
+        for k in range(self.max_iter):
+            theta_k = self.update_fit_params(k, theta_k_1, theta_k_2, -1, step_size_k * self.alpha, data_points)
+
+            if self.save_regularization_paths and self.accelerated:
+                regularization_paths.append(theta_k)
+
+            f_theta_k = 0
+            grad_f_theta_k = np.zeros((nr_nodes, nr_nodes))
+            for node in range(nr_nodes):
+                f_theta_k += f_nll(node, data_points, theta_k[node, :])
+                grad_f_theta_k[node, :] = f_grad_nll(node, data_points, theta_k[node, :])
+
+                if self.keep_diag_zero:
+                    grad_f_theta_k[node, node] = 0
+
+            found_step_size = False
+
+            # Make grad_f_theta_k symmetric.
+            grad_f_theta_k = grad_f_theta_k + grad_f_theta_k.T
+
+            # Only prox operator it works with at the moment is Soft Thresholding.
+            for _ in range(self.max_line_search_iter):
+                candidate_new_theta_k = theta_k - step_size_k * grad_f_theta_k
+                threshold = step_size_k * self.alpha
+
+                z = np.zeros((nr_nodes, nr_nodes))
+                for node in range(nr_nodes):
+                    z[node, :] = self.prox_operator.prox(objective=candidate_new_theta_k[node, :],
+                                                         reg_parameter=threshold,
+                                                         node=node,
+                                                         data_points=data_points,
+                                                         keep_diag_zero=self.keep_diag_zero)
+                z = (z + z.T)/2
+
+                # Need to correct how these are calculated yo.
+                first_term = f_theta_k
+                second_term = np.sum((grad_f_theta_k * (z-theta_k))[np.triu_indices(nr_nodes)])
+                third_term = (1/(2 * step_size_k)) * np.sum((z-theta_k)[np.triu_indices(nr_nodes)]**2)
+                f_tilde = first_term + second_term + third_term
+
+                f_z = 0
+                for node in range(nr_nodes):
+                    f_z += f_nll(node, data_points, z[node, :])
+
+                if self.check_line_search_condition_closeto(f_z, f_tilde):
+                    found_step_size = True
+                    break
+                else:
+                    step_size_k = step_size_k * self.beta
+
+            if found_step_size:
+                theta_k_2 = theta_k_1
+                theta_k_1 = z
+                neg_log_likelihoods.append(f_z)
+
+                if self.save_regularization_paths:
+                    regularization_paths.append(z)
+
+                converged = False
+                if self.early_stop_criterion == 'weight':
+                    converged = self.check_params_convergence(k, theta_k_1, theta_k_2)
+                elif self.early_stop_criterion == 'likelihood':
+                    converged = self.check_likelihood_convergence(k, neg_log_likelihoods)
+
+                if converged:
+                    # print('\nParameters for node ' + str(node) + ' converged in ' + str(k) + ' iterations.')
+                    # In this case, last parameters and likelihood were not the best.
+                    if self.early_stop_criterion == "likelihood":
+                        theta_k_1 = theta_k_2
+                        neg_log_likelihoods = neg_log_likelihoods[:-1]
+
+                    break
+
+            else:
+                converged = False
+                print('\nLine search failed.')
+                break
+
+        self.data_points = None
+        regularization_paths = np.array(regularization_paths)
+
+        elapsed_time = time.time() - start_time
+        return theta_k_1, np.array(neg_log_likelihoods), converged, np.array(conditions), regularization_paths, elapsed_time
