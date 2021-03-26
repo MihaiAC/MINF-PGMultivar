@@ -92,7 +92,9 @@ class EvalMetrics():
 
 
     @staticmethod
-    def calculate_tpr_fpr_acc_nonzero(theta_orig:np.ndarray, theta_fit:np.ndarray, symm_mode:SymmModes,
+    def calculate_tpr_fpr_acc_nonzero(theta_orig:np.ndarray,
+                                      theta_fit:np.ndarray,
+                                      symm_mode:SymmModes,
                                       threshold:Optional[float]=1e-6) -> Tuple[float, float, float]:
         nr_variables = theta_orig.shape[0]
         symm_theta_fit = EvalMetrics.copy_and_symmetrize_matrix(theta_fit, symm_mode)

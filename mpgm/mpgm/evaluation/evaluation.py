@@ -65,7 +65,7 @@ class Experiment():
             self.fit_batch_samples_same_FPW(batch_nr)
 
     def fit_batch_samples_same_FPW(self, batch_nr:int):
-        sg = StatsGenerator(self, "", [])
+        # sg = StatsGenerator(self, "", [])
         for sample_nr in range(self.samples_per_batch):
             sample_name = self.get_sample_name(batch_nr, sample_nr)
             fit_name = self.get_fit_name(batch_nr, sample_nr)
@@ -75,8 +75,18 @@ class Experiment():
                                         samples_file_name=self.samples_file_name,
                                         samples_id=sample_name,
                                         theta_init=self.fit_theta_init)
-            print(self.get_fit_name(batch_nr, sample_nr) + " finished fitting. Average iterations: " +
-                  str(sg.get_avg_nr_iterations_fit(sample_nr, batch_nr)))
+            # print(self.get_fit_name(batch_nr, sample_nr) + " finished fitting. Average iterations: " +
+            #       str(sg.get_avg_nr_iterations_fit(sample_nr, batch_nr)))
+
+    @staticmethod
+    def generate_experiment_name(model:str,
+                                 graph_type:str,
+                                 sample_gen_method:str,
+                                 experiment_shorthand:str,
+                                 early_stop_method:str,
+                                 *args) -> str:
+        function_args = [model, graph_type, sample_gen_method, experiment_shorthand, early_stop_method] + list(args)
+        return '_'.join(function_args)
 
 # Object can be used for a single experiment; destroy after usage.
 class StatsGenerator():
@@ -371,8 +381,7 @@ class StatsGenerator():
 
         print('Plotting ' + plot_title + ', ' + y_name + ' vs ' + x_name +  ' finished!')
 
-    # TODO: Split this into multiple functions, add flag for SIPRV vs TPGM-generated samples.
-    # TODO: add experiment labels to plots.
+
     def plot_TPRs_FPRs_ACCs(self, plot_title, x_name, xs:List[Any], x_log_scale:Optional[bool]=False):
         ww_min = EvalMetrics.SymmModes.WW_MIN
         ww_max = EvalMetrics.SymmModes.WW_MAX
@@ -434,9 +443,13 @@ class StatsGenerator():
                             x_name='FPR',
                             y_name='TPR',
                             plot_title=plot_title + 'ROC curves: ' + symm_name,
-                            x_log_scale=x_log_scale)
+                            x_log_scale=False)
 
-    # TODO: I don't think this is correct.
+            # TODO: remove (debugging).
+            print(TPRs_means)
+            print(FPRs_means)
+
+
     def plot_edge_sign_recalls(self, plot_title:str, x_name:str, xs:List[Any], x_log_scale:Optional[bool]=False):
         ww_min = EvalMetrics.SymmModes.WW_MIN
         ww_max = EvalMetrics.SymmModes.WW_MAX
@@ -449,13 +462,20 @@ class StatsGenerator():
             symm_mode = symm_modes[ii]
             symm_name = symm_modes_names[ii]
             edge_sign_recalls = self.get_all_edge_sign_recalls(symm_mode)
+            edge_sign_means = []
+            edge_sign_stds = []
+            for x in edge_sign_recalls:
+                edge_sign_means.append(np.mean(x, axis=0))
+                edge_sign_stds.append(np.std(x, axis=0))
+
             self.plot_ys_common_xs(xs=xs,
-                                   list_ys=[np.mean(edge_sign_recalls, axis=0)],
-                                   ys_errors=[np.std(edge_sign_recalls, axis=0)],
+                                   list_ys=edge_sign_means,
+                                   ys_errors=edge_sign_stds,
                                    x_name=x_name,
                                    y_name='edge_sign_recall',
                                    plot_title=plot_title + ":symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
+
 
     def plot_MSEs(self, plot_title:str, x_name:str, xs:List[Any], x_log_scale:Optional[bool]=False):
         ww_min = EvalMetrics.SymmModes.WW_MIN
@@ -546,7 +566,6 @@ class StatsGenerator():
                                plot_title=plot_title,
                                x_log_scale=x_log_scale)
 
-    # TODO: double check this.
     def plot_nr_iterations(self, plot_title:str, x_name:str, xs:List[Any], x_log_scale:Optional[bool]=False):
         nr_iterations_list = self.get_all_experiment_nr_iterations()
         nr_iterations_means = []
@@ -563,16 +582,31 @@ class StatsGenerator():
                                plot_title=plot_title,
                                x_log_scale=x_log_scale)
 
-
-
-    def plot_ys_common_xs_ALL(self, plot_title:str, x_name:str, xs:List[Any], x_log_scale:Optional[bool]=False):
-
-        avg_node_fit_times = self.get_avg_node_fit_times()
+    def plot_fit_times(self, plot_title:str, x_name:str, xs:List[Any], x_log_scale:Optional[bool]=False):
+        avg_node_fit_times_list = self.get_all_avg_node_fit_times()
+        means = []
+        stds = []
+        for avg_node_fit_times in avg_node_fit_times_list:
+            means.append(np.mean(avg_node_fit_times, axis=0))
+            stds.append(np.std(avg_node_fit_times, axis=0))
         self.plot_ys_common_xs(xs=xs,
-                               list_ys=[np.mean(avg_node_fit_times, axis=0)],
-                               ys_errors=[np.std(avg_node_fit_times, axis=0)],
+                               list_ys=means,
+                               ys_errors=stds,
                                x_name=x_name,
                                y_name='Average fit times',
                                plot_title=plot_title,
-                               labels=[],
                                x_log_scale=x_log_scale)
+
+    def plot_ALL(self, plot_title:str, x_name:str, xs:List[Any], x_log_scale:Optional[bool]=False,
+                 SIPRV_active:Optional[bool]=False):
+        kwargs = dict(**locals())
+        del kwargs['self']
+        del kwargs['SIPRV_active']
+        self.plot_TPRs_FPRs_ACCs(**kwargs)
+        self.plot_sparsities_and_symms(**kwargs)
+        self.plot_nr_iterations(**kwargs)
+        self.plot_fit_times(**kwargs)
+
+        if not SIPRV_active:
+            self.plot_edge_sign_recalls(**kwargs)
+            self.plot_MSEs(**kwargs)
