@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import multiprocessing
+import math
 from mpgm.mpgm.model_fitters.prox_operators import SoftThreshold, QuadProgOperator, AdmmOperator, QPGM_SoftThreshold
 from typing import Callable, Optional, Iterator, Any, Tuple, List
 
@@ -464,3 +465,182 @@ class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
 
         elapsed_time = time.time() - start_time
         return theta_k_1, np.array(neg_log_likelihoods), converged, np.array(conditions), regularization_paths, elapsed_time
+
+class LPGM_Fitter(Constrained_Prox_Grad_Fitter):
+    def __init__(self,
+                 accelerated=True,
+                 constraint_solver='qpoases',
+                 max_iter=5000,
+                 max_line_search_iter=50,
+                 line_search_rel_tol=1e-4,
+                 init_step_size=1.0,
+                 beta=0.5,
+                 rel_tol=1e-3,
+                 abs_tol=1e-6,
+                 early_stop_criterion='weight',
+                 minimum_iterations_until_early_stop=1,
+                 save_regularization_paths=False,
+                 keep_diag_zero=False,
+                 admm_tau: Optional[float] = 0.1,
+                 admm_min_iter: Optional[int] = 100,
+                 admm_max_iter: Optional[int] = 1000,
+                 nr_alphas: Optional[int] = 100,
+                 lpgm_B: Optional[int] = 10,
+                 lpgm_beta: Optional[float] = 0.1
+                 ):
+        super().__init__(-1, accelerated, constraint_solver, max_iter, max_line_search_iter, line_search_rel_tol,
+                         init_step_size, beta, rel_tol, abs_tol, early_stop_criterion,
+                         minimum_iterations_until_early_stop, save_regularization_paths, keep_diag_zero, admm_tau,
+                         admm_min_iter, admm_max_iter)
+        self.nr_alphas = nr_alphas
+        self.lpgm_B = lpgm_B
+        self.lpgm_beta = lpgm_beta
+
+        # These parameters will be initialised when the data_points are given.
+        self.lpgm_m = None
+        self.alpha_values = np.array([])
+
+    def generate_alpha_values(self, data_points:np.ndarray) -> np.ndarray:
+        alpha_min = 0.0001
+
+        alpha_max = 0
+        n_rows, n_cols = data_points.shape
+        for ii in range(1, n_cols):
+            for jj in range(0, ii):
+                value = np.sum(data_points[:, ii] * data_points[:, jj])
+                if(value > alpha_max):
+                    alpha_max = value
+
+        alpha_vals = np.logspace(np.log10(alpha_max), np.log10(alpha_min), self.nr_alphas)
+        return alpha_vals
+
+    def make_matrices(self, results):
+        M = len(self.alpha_values)
+        p = len(results)
+
+        thetas_main = np.zeros((M, p, p))
+        thetas_subsamples = np.zeros((M, self.lpgm_B, p, p))
+
+        for ii in range(p):
+            node_thetas_main = results[ii][0]
+            node_thetas_subsamples = results[ii][1]
+            for alpha_index in range(M):
+                thetas_main[alpha_index, ii, :] = node_thetas_main[ii, :]
+                for b in range(self.lpgm_B):
+                    thetas_subsamples[alpha_index, b, ii, :] = node_thetas_subsamples[b, alpha_index, :]
+
+        return thetas_main, thetas_subsamples
+
+    # TODO: Can replace max by min for fewer edges?
+    @staticmethod
+    def make_ahat(theta):
+        p = theta.shape[0]
+        ahat = np.zeros(theta.shape)
+        for ii in range(1, p):
+            for jj in range(ii):
+                ahat[ii][jj] = max(np.abs(np.sign(theta[ii, jj])), np.abs(np.sign(theta[jj, ii])))
+        return ahat
+
+    @staticmethod
+    def make_ahats(thetas_main, thetas_subsamples):
+        ahats_main = np.zeros(thetas_main.shape)
+        ahats_subsamples = np.zeros(thetas_subsamples.shape)
+
+        M = thetas_main.shape[0]
+        B = thetas_subsamples.shape[1]
+
+        for m in range(M):
+            ahats_main[m, :, :] = LPGM_Fitter.make_ahat(thetas_main[m, :, :])
+            for b in range(B):
+                ahats_subsamples[m, b, :, :] = LPGM_Fitter.make_ahat(thetas_subsamples[m, b, :, :])
+
+        return ahats_main, ahats_subsamples
+
+    @staticmethod
+    def make_abars_subsamples(ahats_subsamples):
+        M, B, p, _ = ahats_subsamples.shape
+        abars_subsamples = np.zeros((M, p, p))
+
+        for m in range(M):
+            for b in range(B):
+                abars_subsamples[m, :, :] += ahats_subsamples[m, b, :, :]
+            abars_subsamples[m, :, :] = (1/B) * abars_subsamples[m, :, :]
+        return abars_subsamples
+
+
+    @staticmethod
+    def calculate_stability(abar_subsample):
+        stability_measure = 0
+        p, _ = abar_subsample.shape
+
+        for ii in range(1, p):
+            for jj in range(ii):
+                stability_measure += abar_subsample[ii, jj] * (1 - abar_subsample[ii, jj])
+        stability_measure = 2 * stability_measure
+        stability_measure = stability_measure / (p * (p-1)/2)
+        return stability_measure
+
+
+    def select_optimal_alpha(self, abars_subsamples):
+        M, p, _ = abars_subsamples.shape
+        for m in range(M-1, -1, -1):
+            stab_measure = LPGM_Fitter.calculate_stability(abars_subsamples[m, :, :])
+            if (stab_measure <= self.lpgm_beta):
+                return m
+        return 0
+
+
+    def call_fit_node(self,
+                      nll:Callable[[int, np.ndarray, np.ndarray], float],
+                      grad_nll:Callable[[int, np.ndarray, np.ndarray], np.ndarray],
+                      data_points:np.ndarray,
+                      theta_init:np.ndarray,
+                      parallelize:Optional[bool]=True) -> \
+            Tuple[np.ndarray, List[np.ndarray], List[bool], List[Any], List[np.ndarray], float]:
+
+        nr_datapoints, nr_nodes = data_points.shape
+        start_time = time.time()
+
+        self.lpgm_m = math.floor(10*math.sqrt(nr_datapoints))
+        self.alpha_values = self.generate_alpha_values(data_points)
+
+        nr_cpus = multiprocessing.cpu_count()
+        with multiprocessing.Pool(processes=nr_cpus-1) as pool:
+            results = pool.starmap(self.fit_node_wrapper, self.fit_node_parameter_generator(nr_nodes, nll, grad_nll, data_points, theta_init))
+
+        thetas_main, thetas_subsamples = self.make_matrices(results)
+        ahats_main, ahats_subsamples = LPGM_Fitter.make_ahats(thetas_main, thetas_subsamples)
+        abars_subsamples = LPGM_Fitter.make_abars_subsamples(ahats_subsamples)
+        alpha_opt_index = self.select_optimal_alpha(abars_subsamples)
+
+        print('Optimal alpha value: ' + str(self.alpha_values[alpha_opt_index]))
+        theta_fit = ahats_main[alpha_opt_index, :, :]
+
+        total_fit_time = time.time() - start_time
+        return ahats_main, [], [], [], [], total_fit_time
+
+
+    def fit_node_wrapper(self, node, f_nll, f_grad_nll, data_points, theta_init):
+        nr_datapoints, nr_nodes = data_points.shape
+        # rho x p
+        thetas_main = np.zeros((len(self.alpha_values), nr_nodes))
+        # B x rho x p
+        thetas_subsamples = np.zeros((self.lpgm_B, len(self.alpha_values), nr_nodes))
+
+        theta_warm = np.copy(theta_init)
+        for ii, alpha in enumerate(self.alpha_values):
+            self.alpha = alpha
+            theta_result = self.fit_node(node, f_nll, f_grad_nll, data_points, theta_warm)[0]
+            theta_warm[node, 0:nr_nodes] = theta_result[0:nr_nodes]
+            thetas_main[ii, 0:nr_nodes] = theta_result[0:nr_nodes]
+
+        for bb in range(self.lpgm_B):
+            theta_warm = np.copy(theta_init)
+            subsample_indices = np.random.choice(list(range(nr_datapoints)), self.lpgm_m, replace=False)
+            subsampled_data_points = data_points[subsample_indices, :]
+            for ii, alpha in enumerate(self.alpha_values):
+                self.alpha = alpha
+                theta_result = self.fit_node(node, f_nll, f_grad_nll, subsampled_data_points, theta_warm)[0]
+                theta_warm[node, 0:nr_nodes] = theta_result[0:nr_nodes]
+                thetas_subsamples[bb, ii, 0:nr_nodes] = theta_result[0:nr_nodes]
+        return thetas_main, thetas_subsamples
