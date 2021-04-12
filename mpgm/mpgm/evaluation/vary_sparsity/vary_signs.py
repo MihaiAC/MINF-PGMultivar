@@ -14,27 +14,21 @@ from mpgm.mpgm.evaluation.preprocessing import ClampMax
 
 import matplotlib.pyplot as plt
 
-def vary_sparsity(SPW:SampleParamsWrapper, nr_edges:int):
-    SPW.graph_generator = RandomNmGraphGenerator(nr_edges=nr_edges)
+def vary_signs(SPW:SampleParamsWrapper, split:float):
+    weight_assigner = SPW.weight_assigner
+    weight_assigner.split = split
+    SPW.weight_assigner = weight_assigner
 
-sparsities = []
-edges_nrs = [5, 10, 15, 20, 25, 30, 35, 40]
-for nr_edges in edges_nrs:
-    gg = RandomNmGraphGenerator(nr_edges)
-    G = gg.generate_graph(10)
-    sparsity = EvalMetrics.calculate_percentage_sparsity(G) * 100
-    sparsities.append(sparsity)
+splits = [0, 0.2, 0.4, 0.6, 0.8, 1]
 
 samples_file_name = "../samples.sqlite"
 fit_file_name = "../fit_models.sqlite"
 
 # Sparsity names:
-experiment_name = "lattice_vary_sparsity_SIPRV_weight_normal"
-experiment_name1 = "lattice_vary_sparsity_Gibbs_weight_normal"
+experiment_name = "lattice_vary_signs_Gibbs_weight_normal"
 
 nr_variables = 10
 nr_samples = 150
-alpha_SIPRV = 2
 alpha_Gibbs = 0.2
 
 if __name__ == '__main__':
@@ -48,12 +42,16 @@ if __name__ == '__main__':
     # SGW.weight_assigner = Dummy_Weight_Assigner()
     # SGW.sampler = SIPRVSampler(lambda_true=1, lambda_noise=0.5)
 
-    SGW.weight_assigner = Constant_Weight_Assigner(ct_weight=-0.5)
+    SGW.weight_assigner = Bimodal_Gaussian_Weight_Assigner(mean_1=-0.2,
+                                                           std_1=0,
+                                                           mean_2=0.2,
+                                                           std_2=0,
+                                                           split=0)
     SGW.sampler = TPGMGibbsSampler(burn_in=200, thinning_nr=150)
 
     SGW.model = TPGM(R=10)
 
-    nr_batches = len(edges_nrs)
+    nr_batches = len(splits)
 
     FPW = FitParamsWrapper(random_seed=0,
                            samples_file_name=samples_file_name)
@@ -69,18 +67,7 @@ if __name__ == '__main__':
     theta_init[np.tril_indices(nr_variables)] = 0
     theta_init = theta_init + theta_init.T
 
-    experiment1 = Experiment(experiment_name=experiment_name1,
-                            random_seeds=list(range(5)),
-                            SPW=SGW,
-                            samples_file_name=samples_file_name,
-                            FPW=FPW,
-                            fit_file_name=fit_file_name,
-                            vary_fit=False,
-                            fit_theta_init=theta_init,
-                            samples_name=experiment_name1
-                            )
-
-    experiment = Experiment(experiment_name=experiment_name,
+    experiment1 = Experiment(experiment_name=experiment_name,
                             random_seeds=list(range(5)),
                             SPW=SGW,
                             samples_file_name=samples_file_name,
@@ -91,14 +78,14 @@ if __name__ == '__main__':
                             samples_name=experiment_name
                             )
 
-    # experiment1.vary_x_generate_samples(edges_nrs, vary_sparsity)
-    # experiment1.fit_all_samples_same_FPW(len(edges_nrs))
+    experiment1.vary_x_generate_samples(splits, vary_signs)
+    experiment1.fit_all_samples_same_FPW(len(splits))
 
-    stats_gen = StatsGenerator(experiments=[experiment, experiment1],
-                               experiment_labels=['SIPRV', 'Gibbs'],
-                               var_name="sample_sparsity",
-                               var_values=sparsities,
+    stats_gen = StatsGenerator(experiments=[experiment1],
+                               experiment_labels=[''],
+                               var_name="% negative weights",
+                               var_values=splits,
                                folder_name=experiment_name)
 
-    stats_gen.plot_ALL("vary_sparsity", "sample_sparsity", sparsities, x_log_scale=False,
+    stats_gen.plot_ALL("vary_signs", "% negative weights", splits, x_log_scale=False,
                        SIPRV_active=False)

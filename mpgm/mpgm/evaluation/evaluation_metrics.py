@@ -263,7 +263,8 @@ class EvalMetrics():
                     nr_zero_params += 1
                 if abs(matrix[jj][ii]) <= threshold:
                     nr_zero_params += 1
-        return nr_zero_params / nr_params
+        percentage_sparsity = nr_zero_params / nr_params
+        return round(percentage_sparsity, 4)
 
     # Helper functions.
     @staticmethod

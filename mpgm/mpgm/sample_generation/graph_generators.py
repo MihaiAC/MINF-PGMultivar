@@ -47,7 +47,7 @@ class ScaleFreeGraphGenerator(GraphGenerator):
         return G
 
 class LatticeGraphGenerator(GraphGenerator):
-    # TODO: Seems like a fake parameter - its effect is negligible. Keep it to 0 and call it a day.
+    # TODO: Seems like a fake parameter - its effect is negligible.
     def __init__(self, sparsity_level=0):
         # A sparsity level of 0 corresponds to selecting the two divisors m, n of nr_variables such that the m x n grid
         # graph contains the maximum number of edges, subject to m * n = nr_variables.

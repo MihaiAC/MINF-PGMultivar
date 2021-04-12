@@ -17,7 +17,8 @@ from itertools import cycle
 class Experiment():
     def __init__(self, experiment_name: str, random_seeds: List[int], SPW: SampleParamsWrapper,
                  samples_file_name:str, FPW:FitParamsWrapper, fit_file_name:str, vary_fit:Optional[bool]=False,
-                 fit_theta_init:Optional[np.ndarray]=None, fit_parallelize:Optional[bool]=True):
+                 fit_theta_init:Optional[np.ndarray]=None, fit_parallelize:Optional[bool]=True,
+                 samples_name:Optional[str]=None):
         self.experiment_name = experiment_name
         self.random_seeds = random_seeds
         self.samples_per_batch = len(random_seeds)
@@ -28,6 +29,7 @@ class Experiment():
         self.vary_fit = vary_fit
         self.fit_parallelize = fit_parallelize
         self.fit_theta_init = fit_theta_init
+        self.samples_name = samples_name
 
     def generate_batch_samples_vary_seed(self, batch_nr:int):
         for sample_nr in range(self.samples_per_batch):
@@ -40,7 +42,11 @@ class Experiment():
     def get_sample_name(self, batch_nr: int, sample_nr: int) -> str:
         if self.vary_fit:
             batch_nr = 0
-        sample_name = self.experiment_name + "_batch_" + str(batch_nr) + "_sample_" + str(sample_nr)
+        if self.samples_name is None:
+            sample_name = self.experiment_name
+        else:
+            sample_name = self.samples_name
+        sample_name = sample_name + "_batch_" + str(batch_nr) + "_sample_" + str(sample_nr)
         return sample_name
 
     def get_fit_name(self, batch_nr:int, sample_nr:int) -> str:
@@ -59,10 +65,28 @@ class Experiment():
         for batch_nr, x in enumerate(xs):
             f_vary(self.FPW, x)
             self.fit_batch_samples_same_FPW(batch_nr)
+            print('Fitting for parameter ' + str(x) + ' finished!')
 
     def fit_all_samples_same_FPW(self, nr_batches:int):
         for batch_nr in range(nr_batches):
             self.fit_batch_samples_same_FPW(batch_nr)
+            print('Batch ' + str(batch_nr) + ' finished.')
+
+    # TODO: Need exception for LPGM.
+    # nr_batches must be equal to nr_alphas.
+    def fit_LPGM(self, nr_batches):
+        for sample_nr in range(self.samples_per_batch):
+            sample_name = self.get_sample_name(0, sample_nr)
+            fit_names = []
+            for batch_nr in range(nr_batches):
+                fit_names.append(self.get_fit_name(batch_nr, sample_nr))
+            self.FPW.fit_lpgm_and_save(fit_ids=fit_names,
+                                       fit_file_name=self.fit_file_name,
+                                       samples_file_name=self.samples_file_name,
+                                       samples_id=sample_name,
+                                       theta_init=self.fit_theta_init)
+
+
 
     def fit_batch_samples_same_FPW(self, batch_nr:int):
         # sg = StatsGenerator(self, "", [])
@@ -415,7 +439,7 @@ class StatsGenerator():
                                    ys_errors=TPRs_stds,
                                    x_name=x_name,
                                    y_name='TPR',
-                                   plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   plot_title=plot_title + ": symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
 
             # Plot FPRs.
@@ -424,7 +448,7 @@ class StatsGenerator():
                                    ys_errors=FPRs_stds,
                                    x_name=x_name,
                                    y_name='FPR',
-                                   plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   plot_title=plot_title + ": symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
 
             #Plot ACCs.
@@ -433,7 +457,7 @@ class StatsGenerator():
                                    ys_errors=ACCs_stds,
                                    x_name=x_name,
                                    y_name='ACC',
-                                   plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   plot_title=plot_title + ": symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
 
             # Plot TPRs vs FPRs for each experiment.
@@ -442,7 +466,7 @@ class StatsGenerator():
                             ys_errors=[],
                             x_name='FPR',
                             y_name='TPR',
-                            plot_title=plot_title + 'ROC curves: ' + symm_name,
+                            plot_title=plot_title + ' ROC curves: ' + symm_name,
                             x_log_scale=False)
 
             # TODO: remove (debugging).
@@ -473,7 +497,7 @@ class StatsGenerator():
                                    ys_errors=edge_sign_stds,
                                    x_name=x_name,
                                    y_name='edge_sign_recall',
-                                   plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   plot_title=plot_title + ": symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
 
 
@@ -505,7 +529,7 @@ class StatsGenerator():
                                    ys_errors=MSEs_stds,
                                    x_name=x_name,
                                    y_name='MSE',
-                                   plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   plot_title=plot_title + ": symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
 
             self.plot_ys_common_xs(xs=xs,
@@ -513,7 +537,7 @@ class StatsGenerator():
                                    ys_errors=diag_MSEs_stds,
                                    x_name=x_name,
                                    y_name='diag_MSE',
-                                   plot_title=plot_title + ":symm_mode=" + symm_name,
+                                   plot_title=plot_title + ": symm_mode=" + symm_name,
                                    x_log_scale=x_log_scale)
 
 

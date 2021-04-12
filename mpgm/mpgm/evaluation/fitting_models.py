@@ -170,6 +170,63 @@ class FitParamsWrapper():
 
         return self.FPS.theta_fit
 
+    def fit_lpgm_and_save(self,
+                         fit_ids:List[str],
+                         fit_file_name:str,
+                         samples_file_name:Optional[str]=None,
+                         samples_id:Optional[str]=None,
+                         theta_init:Optional[np.ndarray]=None,):
+        if samples_file_name is not None:
+            self.FPS.samples_file_name = samples_file_name
+
+        if samples_id is not None:
+            self.FPS.samples_id = samples_id
+
+        SPS = SampleParamsWrapper.load_samples(self.FPS.samples_id, self.FPS.samples_file_name)
+        samples = SPS.samples
+
+        if theta_init is None and self.FPS.theta_init is None:
+            assert 0 == 1, "Provided an empty theta_init -> exit."
+        else:
+            # samples array should have dims (nr_samples, nr_variables);
+            # params array should have dims (nr_variables, nr_variables);
+            assert samples.shape[1] == theta_init.shape[0], \
+                   "Initial dimensions for theta_init do not match with the dimensions of the selected samples"
+            self.FPS.theta_init = theta_init
+
+        if self.FPS.preprocessor is not None:
+            self.FPS.preprocessor.preprocess(samples)
+
+        fit_start_time = time.time()
+        fit_results = self.fitter.call_fit_node(nll=self.model.calculate_nll,
+                                                grad_nll=self.model.calculate_grad_nll,
+                                                data_points=samples,
+                                                theta_init=self.FPS.theta_init)
+        self.FPS.fit_time = time.time() - fit_start_time
+
+        self.FPS.likelihoods = []
+        self.FPS.converged = []
+        self.FPS.conditions = []
+        self.FPS.regularization_paths = []
+        self.FPS.avg_node_fit_time = 0
+
+        ahats_main = fit_results[0]
+        for ii in range(len(fit_ids)):
+            theta_fit = ahats_main[ii, :, :]
+
+            self.model.theta = theta_fit
+            self.model = self.model
+
+            self.FPS.theta_fit = theta_fit
+
+            fits_dict = SqliteDict('./' + fit_file_name, autocommit=True)
+            fits_dict[fit_ids[ii]] = self.FPS
+            fits_dict.commit()
+            fits_dict.close()
+
+        return np.array([])
+
+
     @staticmethod
     def load_fit(fit_id:str, sqlite_file_name:str) -> FitParamsSave:
         fits_dict = SqliteDict('./' + sqlite_file_name, autocommit=True)

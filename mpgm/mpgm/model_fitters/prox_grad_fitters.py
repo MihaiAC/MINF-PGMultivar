@@ -316,8 +316,6 @@ class Pseudo_Likelihood_Prox_Grad_Fitter(Constrained_Prox_Grad_Fitter):
                       parallelize:Optional[bool]=True) -> \
             Tuple[np.ndarray, List[np.ndarray], List[bool], List[Any], List[np.ndarray], float]:
 
-        # TODO: Tomorrow: Do this -> test it -> QPGM test a few runs -> LPGM test a bit?
-
         # Returned parameters differ from the parameters returned by the normal Prox_Grad.
         # Since the first param is the same and the types match, it shouldn't pose a problem to the StatsGenerator
         # class.
@@ -538,7 +536,8 @@ class LPGM_Fitter(Constrained_Prox_Grad_Fitter):
         ahat = np.zeros(theta.shape)
         for ii in range(1, p):
             for jj in range(ii):
-                ahat[ii][jj] = max(np.abs(np.sign(theta[ii, jj])), np.abs(np.sign(theta[jj, ii])))
+                ahat[ii][jj] = min(np.abs(np.sign(theta[ii, jj])), np.abs(np.sign(theta[jj, ii])))
+                ahat[jj][ii] = ahat[ii][jj]
         return ahat
 
     @staticmethod
@@ -631,7 +630,11 @@ class LPGM_Fitter(Constrained_Prox_Grad_Fitter):
         for ii, alpha in enumerate(self.alpha_values):
             self.alpha = alpha
             theta_result = self.fit_node(node, f_nll, f_grad_nll, data_points, theta_warm)[0]
-            theta_warm[node, 0:nr_nodes] = theta_result[0:nr_nodes]
+            # theta_warm = np.copy(theta_init)
+            if max(theta_result[0:nr_nodes]) > 2 or min(theta_result[0:nr_nodes] < -2):
+                theta_warm[node, 0:nr_nodes] = np.copy(theta_init)
+            else:
+                theta_warm[node, 0:nr_nodes] = theta_result[0:nr_nodes] + 0.01 * theta_init[node, 0:nr_nodes]
             thetas_main[ii, 0:nr_nodes] = theta_result[0:nr_nodes]
 
         for bb in range(self.lpgm_B):
@@ -641,6 +644,10 @@ class LPGM_Fitter(Constrained_Prox_Grad_Fitter):
             for ii, alpha in enumerate(self.alpha_values):
                 self.alpha = alpha
                 theta_result = self.fit_node(node, f_nll, f_grad_nll, subsampled_data_points, theta_warm)[0]
-                theta_warm[node, 0:nr_nodes] = theta_result[0:nr_nodes]
+                # theta_warm = np.copy(theta_init)
+                if max(theta_result[0:nr_nodes]) > 2 or min(theta_result[0:nr_nodes] < -2):
+                    theta_warm[node, 0:nr_nodes] = np.copy(theta_init)
+                else:
+                    theta_warm[node, 0:nr_nodes] = theta_result[0:nr_nodes] + 0.01 * theta_init[node, 0:nr_nodes]
                 thetas_subsamples[bb, ii, 0:nr_nodes] = theta_result[0:nr_nodes]
         return thetas_main, thetas_subsamples

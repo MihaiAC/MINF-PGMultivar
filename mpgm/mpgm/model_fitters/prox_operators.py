@@ -179,7 +179,8 @@ class AdmmOperator(ProxOperator):
         f_operator = partial(soft_thresh_op.prox,
                              reg_parameter=new_reg_parameter,
                              node=node,
-                             data_points=data_points)
+                             data_points=data_points,
+                             keep_diag_zero=keep_diag_zero)
 
         g_operator = partial(scipy.optimize.minimize,
                              method="SLSQP",
